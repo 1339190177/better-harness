@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -12,9 +13,10 @@ import policy, {
   DSH_NATIVE_VERSION,
   verifyCanonicalSkill,
 } from "./index.mjs";
+import bundle, { PACKAGED_ROOT } from "./bundle.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPOSITORY_ROOT = path.resolve(HERE, "../..");
+const REPOSITORY_ROOT = realpathSync(path.resolve(HERE, "../.."));
 const DSH_PACKAGES = [
   "@deepseek-ai/dsh-agent",
   "@deepseek-ai/dsh-llm",
@@ -164,6 +166,47 @@ async function runSmoke(nodeModules, scratch) {
   assert.equal(modelResult.isError, true);
   assert.match(modelResult.content[0].text, /explicit \/better-harness/);
 
+  // The host shell route. `.dsh-plugin/cordis.patch.yml` names `bundle.mjs`, and DSH loads it as
+  // a profile bundle layer in the host plane. This context mounts no skill-filesystem owner and
+  // no `customSkillDirs` entry, so the case proves the shell self-locates its own package root
+  // and lands the canonical Skill in the global layer on its own.
+  assert.equal(PACKAGED_ROOT, REPOSITORY_ROOT, "the shell must self-locate the root the smoke runs from");
+  const shellCtx = new Context();
+  await shellCtx.plugin(SystemPrompt);
+  await shellCtx.plugin(ToolRuntime);
+  await shellCtx.plugin(AgentRegistry);
+  await shellCtx.plugin(SkillRegistry);
+  await shellCtx.plugin(toolSkill);
+  await shellCtx.plugin(bundle);
+  const shellAgent = agentFor(workspace);
+  const shellWinner = await shellCtx.skills.get("better-harness", { cwd: workspace, scope: shellAgent });
+  const shellIdentity = await verifyCanonicalSkill({ betterHarnessRoot: PACKAGED_ROOT, skill: shellWinner });
+  assert.equal(shellIdentity.verified, true, shellIdentity.reasons.join(", "));
+  assert.equal(shellWinner.source, "custom");
+  assert.equal(shellWinner.path, identity.paths.skillFile);
+  assert.deepEqual(shellWinner.resourceBase, { kind: "directory", path: identity.paths.skillDirectory });
+  const shellCatalogDecision = await preStep(shellCtx, agentFor(workspace), [userMessage("ordinary prompt")]);
+  assert.equal(
+    shellCatalogDecision.messages.find((message) => message.source?.kind === "skill-catalog")?.source?.entries
+      ?.some((entry) => entry.name === "better-harness"),
+    true,
+    "the shell must publish the Skill into every session catalog on the profile",
+  );
+  const shellExplicit = await preStep(shellCtx, shellAgent, [userMessage("/better-harness inspect this harness")]);
+  assert.equal(shellExplicit.kind, "enter");
+  assert.equal(
+    shellExplicit.messages.find((message) => message.source?.kind === "skill-invocation")?.source?.name,
+    "better-harness",
+  );
+  const shellModelResult = await shellCtx.tools.execute({
+    signal: new AbortController().signal,
+    callId: CallId("better-harness-shell-model-call"),
+    name: "skill",
+    arguments: { name: "better-harness" },
+    agent: shellAgent,
+  });
+  assert.equal(shellModelResult.isError, true);
+
   const webHome = await mkdtemp(path.join(scratch, "web-home-"));
   const webCtx = new Context();
   await webCtx.plugin(SystemPrompt);
@@ -248,6 +291,7 @@ async function runSmoke(nodeModules, scratch) {
     credentialRequired: false,
     owners: ["SkillRegistry", "FileSystemSkillProvider", "tool-skill agent/pre-step", "ToolRuntime.guard"],
     discovery: "verified",
+    hostShell: "verified bundle layer, no customSkillDirs and no configured root",
     explicitInvocation: "injected before model request derivation",
     modelInvocation: "rejected",
     headlessBase: "verified global skill-filesystem owner",

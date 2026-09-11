@@ -242,6 +242,7 @@ test("npm package metadata includes every public host manifest", () => {
     ".claude-plugin/",
     ".codex-plugin/",
     ".cursor-plugin/",
+    ".dsh-plugin/",
     ".github/plugin/",
     ".qoder-plugin/",
     ".kimi-plugin/",

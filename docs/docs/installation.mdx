@@ -69,48 +69,20 @@ Call its absolute directory `<BETTER_HARNESS_ROOT>` below. It must contain
 `skills/better-harness/SKILL.md`, `scripts/better-harness.mjs`, `references/`,
 `models/`, and `templates/`.
 
-### Headless/base
+### Install with the host shell
 
-In the active headless profile's `cordis.patch.yml`, configure the existing
-global Skill filesystem row and insert the Better Harness DSH policy:
+One DSH command installs the published package as a profile bundle layer:
 
-```yaml
-- id: skill-filesystem
-  config:
-    customSkillDirs:
-      - /absolute/path/to/better-harness/skills
-
-- insert:
-    - id: better-harness-explicit-only
-      name: /absolute/path/to/better-harness/scripts/dsh-skill-discovery/index.mjs
-      config:
-        betterHarnessRoot: /absolute/path/to/better-harness
+```sh
+dsh plugin --profile <name> add @qoder-ai/better-harness
+# and, to undo it completely:
+dsh plugin --profile <name> remove @qoder-ai/better-harness
 ```
 
-The profile file is normally
-`$DSH_HOME/profiles/headless/cordis.patch.yml`. Replace every example with the
-same real absolute root before starting a new session.
-
-### Web `standard`, `code`, or `cordis`
-
-The Web host owns Skill discovery inside the selected agent preset. In Web's
-Agent Presets settings, copy `standard`, `code`, or `cordis` to a user preset.
-Edit that copy's active `skill-filesystem` row in
-`$DSH_HOME/.agent-presets/<your-preset>/agent.cordis.yml`:
-
-```yaml
-- id: skill-filesystem
-  name: '@deepseek-ai/dsh-skill-filesystem'
-  config:
-    customSkillDirs:
-      - /absolute/path/to/better-harness/skills
-```
-
-Then insert the same `better-harness-explicit-only` policy row shown above in
-`$DSH_HOME/profiles/web/cordis.patch.yml`, select the copied user preset, and
-start a new session. Editing only the global Web `skill-filesystem` row is not
-the qualified route. Web `minimal` does not mount the Skill loader and remains
-unsupported.
+DSH reconciles the `dsh.bundle.patch` declaration in the package's
+`package.json` into `dsh.profile.bundles`, and the single row in
+`.dsh-plugin/cordis.patch.yml` registers the canonical Skill in the global
+skills layer and attaches the explicit-only policy.
 
 ### Verify the boundary
 
@@ -126,13 +98,21 @@ invariant, and required root resources. It rejects a higher-precedence
 project-local same-name Skill and rejects model-facing
 `skill({ name: "better-harness" })` calls.
 
-Use an absolute path on macOS, Linux, and Windows, including when it contains
-spaces or Unicode. DSH resolves relative `customSkillDirs` from its process
-working directory and does not expand a literal `~`. Do not install a standalone
-Skill copy or use a symlink/junction as the canonical route. If the complete
-Better Harness root moves, update both the `customSkillDirs` value and policy
-plugin path/configuration. Repository contributors can repeat the pinned,
-credential-free native proof with `npm run test:dsh-native`.
+Do not install a standalone Skill copy or use a symlink/junction as the canonical
+route. Repository contributors can repeat the pinned, credential-free native
+proof with `npm run test:dsh-native`, and the offline shell chain (declaration,
+patch row, entry, provider, canonical verification) with `npm run test:dsh-bundle`.
+
+### Fallback: manual configuration
+
+If the host shell is unavailable, point the active
+`skill-filesystem.customSkillDirs` at the absolute
+`<BETTER_HARNESS_ROOT>/skills` directory and load the Better Harness DSH policy
+from the same complete root. Use an absolute path on macOS, Linux, and Windows,
+including when it contains spaces or Unicode. DSH resolves relative
+`customSkillDirs` from its process working directory and does not expand a
+literal `~`. If the complete Better Harness root moves, update both the
+`customSkillDirs` value and policy plugin path/configuration.
 
 ### Inventory configured assets
 

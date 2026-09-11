@@ -1,0 +1,40 @@
+# Better Harness — DeepSeek Harness host shell.
+#
+# Thin install/discovery metadata for one host, alongside `.claude-plugin/`,
+# `.qoder-plugin/`, `.cursor-plugin/`, `.codex-plugin/`, `.github/plugin/`,
+# `.kimi-plugin/`, `qwen-extension.json`, and the `pi` manifest in `package.json`.
+# This file owns no behavior: the row points at a capability-owned module under
+# `scripts/dsh-skill-discovery/`, which is the DSH owner of verified discovery.
+#
+# How it activates: `dsh plugin --profile <name> add @qoder-ai/better-harness`
+# installs the package as a profile dependency, and DSH's reconcile adds it to
+# `dsh.profile.bundles` because `package.json` declares `dsh.bundle.patch`. No
+# preset edit and no hand-written Cordis row are needed.
+#
+# What the one row does, from the host plane (so it lands in the GLOBAL skills
+# layer and every session on the profile sees it, whatever preset is active):
+#   1. publishes the canonical `skills/better-harness/SKILL.md` as a `custom`
+#      Skill bound to this package's own root, self-located from the module URL
+#      — there is no absolute Better Harness path to configure or to update
+#      when the package moves; and
+#   2. attaches the explicit-only policy, so a model-facing
+#      `skill({ name: "better-harness" })` is refused and only a user-written
+#      `/better-harness` gesture injects the body, after the winning definition
+#      is verified against the canonical root.
+#
+# Removal is symmetric: `dsh plugin --profile <name> remove @qoder-ai/better-harness`
+# drops the row, and the next profile start disposes the provider and the policy
+# with the bundle's fiber. Nothing else in DSH references this package.
+#
+# Optional row config: add `config: { betterHarnessRoot: /absolute/path }` to
+# bind discovery and verification to a different complete Better Harness root
+# (for example a patched out-of-tree copy). It must be absolute; a literal `~`
+# and relative paths are rejected by the policy's own validation.
+#
+# Not covered by this shell, and unchanged by it: DSH session evidence still
+# goes through `scripts/session-analysis/platforms/dsh.mjs`, whose strict replay
+# contract is a separate concern; the `minimal` Web preset mounts no Skill
+# loader and stays on the manual `customSkillDirs` route.
+- insert:
+    - id: better-harness
+      name: ../scripts/dsh-skill-discovery/bundle.mjs

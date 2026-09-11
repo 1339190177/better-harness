@@ -47,6 +47,9 @@ Legend:
 .codex-plugin/                         # [active] thin Codex shell
   plugin.json                          # thin discovery/install metadata only
 
+.dsh-plugin/                           # [active] thin DeepSeek Harness shell
+  cordis.patch.yml                     # Cordis bundle layer: one row, pointers only
+
 .github/plugin/                        # [active] thin GitHub Copilot shell
   plugin.json marketplace.json         # native install/discovery metadata only
 
@@ -247,7 +250,7 @@ Use the tree first. These rules resolve common collisions:
   `.cursor-plugin/`, `.codex-plugin/`, and `.github/plugin/` are
   install/discovery shells for one host. Existing active shells may be
   hand-maintained narrowly, but the Qoder
-  public npm package ships all seven plugin metadata roots, while the Qoder
+  public npm package ships all eight plugin metadata roots, while the Qoder
   runtime bundle ships only `.qoder-plugin/`. New host shells start from the
   `docs/adapters/README.md` matrix; split to `docs/adapters/<host>.md` and add a
   source-local `scripts/packaging/` builder only for an accepted host-artifact

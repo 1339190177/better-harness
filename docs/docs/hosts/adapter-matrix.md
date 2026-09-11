@@ -41,11 +41,13 @@ remains the complete capability-level source of truth.
 | Kimi Code | Adapter support | Analysis-capable source-local host | `.kimi-plugin/plugin.json` | Workspace-matching Kimi wire transcripts | Self-contained HTML + Markdown |
 | WorkBuddy | Adapter support | Analysis-capable source-local host | None; skills use WorkBuddy-owned paths | Workspace-matching WorkBuddy JSONL transcripts | Self-contained HTML + Markdown |
 | Grok | Adapter support | Analysis-capable source-local host | None; skills use Grok-owned paths | Workspace-matching Grok session dirs (`updates.jsonl`) | Self-contained HTML + Markdown |
-| DeepSeek Harness (DSH) | Verified install/discovery | Qualified headless/base and Web `standard`/`code`/`cordis`; shared read-only analysis over partial configured-assets and session evidence | Local DSH Cordis policy; no lifecycle shell | DSH JSONL backend session format `0`: raw `.jsonl` and feature-detected `.jsonl.zstd` | Self-contained HTML + Markdown |
+| DeepSeek Harness (DSH) | Verified install/discovery | Qualified headless/base and Web `standard`/`code`/`cordis`; shared read-only analysis over partial configured-assets and session evidence | `.dsh-plugin/cordis.patch.yml` Cordis bundle shell plus the local DSH Cordis policy; no lifecycle shell | DSH JSONL backend session format `0`: raw `.jsonl` and feature-detected `.jsonl.zstd` | Self-contained HTML + Markdown |
 
-The `@qoder-ai/better-harness` npm package includes all seven plugin metadata
-roots. Pi reuses install metadata in the existing `package.json`, so it does
-not add an eighth filesystem metadata root. The generated Qoder runtime bundle
+The `@qoder-ai/better-harness` npm package includes all eight plugin metadata
+roots; `.dsh-plugin/` is the DeepSeek Harness Cordis bundle shell, installed by
+`dsh plugin --profile <name> add @qoder-ai/better-harness`. Pi reuses install
+metadata in the existing `package.json`, so it adds no filesystem metadata root
+of its own. The generated Qoder runtime bundle
 includes only the Qoder shell; non-Qoder generated host artifacts remain
 source-local.
 
@@ -167,27 +169,32 @@ smoke is observed.
 ### DeepSeek Harness (DSH) {#deepseek-harness-dsh}
 
 DSH has Verified install/discovery against DSH `0.1.1-rc.2` at audited source
-`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`. The only supported route points
-the active `skill-filesystem.customSkillDirs` at the absolute
-`<BETTER_HARNESS_ROOT>/skills` directory and loads the Better Harness DSH policy
-from the same complete root. The policy fails closed unless DSH's winning
-definition has the expected `custom` source, `SKILL.md` path, directory
-`resourceBase`, two-parent root, and required root resources. A direct user
-`/better-harness` gesture then injects the canonical Skill at DSH's pre-model
-step boundary, while a model-facing Better Harness `skill` tool call is
-rejected.
+`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`. The primary route uses the host
+shell bundle entry shipped in `.dsh-plugin/cordis.patch.yml`:
+`dsh plugin --profile <name> add @qoder-ai/better-harness` reconciles the
+package into `dsh.profile.bundles`, and the single shell row registers the
+canonical Skill in the global skills layer and attaches the explicit-only
+policy. The policy fails closed unless DSH's winning definition has the expected
+`custom` source, `SKILL.md` path, directory `resourceBase`, two-parent root, and
+required root resources. A direct user `/better-harness` gesture then injects
+the canonical Skill at DSH's pre-model step boundary, while a model-facing
+Better Harness `skill` tool call is rejected.
 
-This route is qualified for headless/base. In Web it is qualified only for an
-active user preset copied from `standard`, `code`, or `cordis` and configured
+As a fallback, the manual route points the active
+`skill-filesystem.customSkillDirs` at the absolute
+`<BETTER_HARNESS_ROOT>/skills` directory and loads the Better Harness DSH policy
+from the same complete root. Paths must be absolute; DSH resolves relative paths
+from its process working directory and does not expand a literal `~`. Moving the
+complete Better Harness root requires reconfiguring every absolute path.
+
+The shell route is qualified for headless/base. In Web it is qualified only for
+an active user preset copied from `standard`, `code`, or `cordis` and configured
 through that preset's scoped `skill-filesystem` row. Web `minimal` has no Skill
 loader and remains unsupported. DSH's project-local same-name roots keep their
 native higher precedence, but such a winner is reported unverified rather than
 canonical. Standalone copies and symlinks/junctions are not supported install
-routes. Paths must be absolute; DSH resolves relative paths from its process
-working directory and does not expand a literal `~`. Moving the complete Better
-Harness root requires reconfiguring every absolute path. The Installation page
-documents the configuration boundary; run the pinned, credential-free owner
-smoke with `npm run test:dsh-native`.
+routes. The Installation page documents both routes; run the pinned,
+credential-free owner smoke with `npm run test:dsh-native`.
 
 DSH also has a developer-preview configured-assets provider. It reports native
 filesystem Skill winners and cwd-sensitive Instruction sources as
