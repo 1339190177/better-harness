@@ -42,7 +42,9 @@ the fallback; structural is opt-in per file.
 - A three-way merge or conflict view.
 - Language parity with upstream. Janet, Kotlin, LaTeX, and Smali are deliberately
   dropped (see Decisions) because they are the only grammars difftastic vendors
-  as C sources (~62 MB). Every crates.io-hosted grammar is retained.
+  as C sources (~62 MB). Detection is also bounded to the grammars this product
+  reviews; a file in a dropped language still diffs, at word level, through the
+  engine's plain-text fallback.
 - Windows/Linux NSXPC. Those platforms use the same stdio driver the other
   capability services already use.
 
@@ -76,6 +78,10 @@ the fallback; structural is opt-in per file.
 - **AC-10** The parser-detected language name and the change counts are stable
   across repeated requests for the same commit and path (cached), and a second
   request does not re-invoke the engine for an unchanged key.
+- **AC-11** A packaged macOS app ships the diff service with the other native
+  services: the `.xpc` bundle carries the driver and the engine's third-party
+  notice, the bridge lands in `Contents/MacOS`, and Studio starts with the
+  structural reading available instead of failing at startup.
 
 ## Plan / Tasks
 
@@ -103,6 +109,10 @@ the fallback; structural is opt-in per file.
    `server/workspace/routes.ts` and desktop options.
 5. **Studio UI** - `app/code/StructuralDiffView.tsx`, switch in
    `app/GitHistoryView.tsx`, i18n resources, stylesheet roles.
+6. **Payload and packaging follow-up** - measure the linked parse tables, trim
+   the language set to what the product reviews (see Decisions), and complete the
+   macOS packaging path so the service is installed by the app bundle rather than
+   only by the development build.
 
 ## Test / Review Evidence
 
@@ -128,14 +138,36 @@ Recorded on 2026-09-14, macOS arm64, Rust 1.96.0.
 - Measured engine cost: ~0.5 s for 750 lines and ~1.2 s for 7.4k lines, against
   ~0.03 s for `git diff` on the same pair.
 
+Recorded on 2026-09-14 for the payload and packaging follow-up.
+
+- `cargo test --locked` still passes in both crates after the trim (122 upstream,
+  10 bridge, 8 protocol, 2 driver), including `test_configs_valid`, which builds
+  every remaining language config.
+- `harness-diff-host` fell from 108 MB to 57 MB, with its 100 MB `__const`
+  parse-table section at 52 MB. The removed grammars are the bulk of it.
+- The trim changes nothing the client asserts: the native suite (43 tests) passes
+  over both stdio and NSXPC, and the only language names it asserts on
+  (`TypeScript`, `TypeScript TSX`, `Rust`) are retained.
+- The macOS bundle was installed into a temporary app directory with the same
+  helper `after-pack.mjs` calls, and then asserted to contain the driver, the
+  bridge, the `.xpc` service and the engine notice.
+
 ## Decisions and Boundaries
 
 - **Vendored, not forked.** The changes are the minimum needed to build the
   engine as a library: one visibility bridge and the language removal. Engine
   behaviour is not modified.
 - **Language boundary.** Dropping the four vendored-grammar languages keeps the
-  in-repo payload at ~70 KB of highlights instead of ~62 MB of generated C.
-  Re-adding one requires its grammar source and an arm in the language tables.
+  in-repo payload at ~70 KB of highlights instead of ~62 MB of generated C; the
+  crates.io grammar set is then trimmed to the languages this product reviews.
+  Removed: Ada, Apex, Common Lisp, Dart, Device Tree, Elm, Erlang, F#, Fortran,
+  Gleam, Julia, Newick, Pascal, R, Racket, Scheme, Solidity, Verilog and VHDL.
+  Emacs Lisp, which the trim would have removed for no measurable gain, is kept
+  because the engine's own tests exercise it. Re-adding one requires its grammar
+  crate and an arm in each language table.
+- **Packaging is part of the service.** A native service is only shipped when the
+  packaging path installs it, not when the development build does; macOS reaches
+  its services through `after-pack.mjs`, so a new service must be added there too.
 - **We own the wire contract.** difftastic's `--display json` is never exposed;
   `StructuralDiffV1` is ours and is what the renderer and tests assert on.
 - **Segments, not offsets.** The bridge converts difftastic's byte columns into
@@ -150,14 +182,12 @@ Recorded on 2026-09-14, macOS arm64, Rust 1.96.0.
 
 ## Open Items
 
-- **Bundle size.** `harness-diff-host` is 103 MB, of which ~100 MB is tree-sitter
-  parse tables in `__TEXT`, not strippable symbols (`strip = true` already
-  applies; `__text` is only 5.7 MB). Verilog alone is 17 MB, F# 11 MB, Fortran
-  6 MB. This roughly doubles the native payload (the box host is 80 MB).
-  [NEEDS CLARIFICATION: should the language set be trimmed to the grammars this
-  product actually reviews?] Dropping the large, rarely-relevant grammars
-  (Verilog, VHDL, F#, Fortran, Ada, Pascal, Racket, Scheme, Common Lisp, Elisp,
-  Julia, R, Erlang, Elm, Gleam, Dart, Apex, Solidity, Newick, Device Tree) is
-  worth roughly half the binary and requires an arm removed per language in
-  `guess_language.rs` and `tree_sitter_parser.rs`. The current build keeps every
-  grammar available on crates.io.
+- **Bundle size.** Resolved. The parse tables were the whole of it: the table data
+  lives in `__const`, not in strippable symbols, so `strip` could never touch it.
+  The language set is now bounded to this product's languages, which is the one
+  lever that removes table data rather than compressing it. What remains (~52 MB)
+  is the price of the grammars that are kept.
+- **Packaged-app coverage.** The macOS packaging gap was invisible because this
+  repository's desktop workflow runs on pull requests and the change landed on
+  `main`. A packaged-app smoke now exercises the service, because Studio proves
+  the diff hop at startup rather than on the first commit a reader opens.

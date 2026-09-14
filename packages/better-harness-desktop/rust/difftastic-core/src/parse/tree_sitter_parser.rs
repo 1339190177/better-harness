@@ -114,51 +114,6 @@ pub(crate) fn from_language(language: guess::Language) -> &'static TreeSitterCon
 fn build_config(language: guess::Language) -> TreeSitterConfig {
     use guess::Language::*;
     match language {
-        Ada => {
-            let language_fn = tree_sitter_ada::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string_literal", "character_literal"]
-                    .into_iter()
-                    .collect(),
-                delimiter_tokens: vec![("(", ")"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/ada.scm"),
-                )
-                .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Apex => {
-            let language_fn = tree_sitter_sfapex::apex::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [
-                    "string_literal",
-                    "null_literal",
-                    "boolean",
-                    "int",
-                    "decimal_floating_point_literal",
-                    "date_literal",
-                    "currency_literal",
-                ]
-                .into_iter()
-                .collect(),
-                delimiter_tokens: vec![("[", "]"), ("(", ")"), ("{", "}")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    tree_sitter_sfapex::apex::HIGHLIGHTS_QUERY,
-                )
-                .unwrap(),
-                sub_languages: vec![],
-            }
-        }
         Asm => {
             let language_fn = tree_sitter_asm::LANGUAGE;
             let language = tree_sitter::Language::new(language_fn);
@@ -256,19 +211,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 sub_languages: vec![],
             }
         }
-        CommonLisp => {
-            let language_fn = tree_sitter_commonlisp::LANGUAGE_COMMONLISP;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["str_lit", "char_lit"].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, "").unwrap(),
-                sub_languages: vec![],
-            }
-        }
         CSharp => {
             let language_fn = tree_sitter_c_sharp::LANGUAGE;
             let language = tree_sitter::Language::new(language_fn);
@@ -310,40 +252,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 ignore_trailing_tokens: vec![],
                 highlight_query: ts::Query::new(&language, tree_sitter_css::HIGHLIGHTS_QUERY)
                     .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Dart => {
-            let language_fn = tree_sitter_dart_orchard::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string_literal", "script_tag"].into_iter().collect(),
-                delimiter_tokens: vec![("{", "}"), ("(", ")"), ("[", "]"), ("<", ">")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    tree_sitter_dart_orchard::HIGHLIGHTS_QUERY,
-                )
-                .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        DeviceTree => {
-            let language_fn = tree_sitter_devicetree::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["byte_string_literal", "string_literal"]
-                    .into_iter()
-                    .collect(),
-                delimiter_tokens: vec![("<", ">"), ("{", "}"), ("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/devicetree.scm"),
-                )
-                .unwrap(),
                 sub_languages: vec![],
             }
         }
@@ -391,20 +299,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 sub_languages: vec![],
             }
         }
-        Elm => {
-            let language_fn = tree_sitter_elm::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string_constant_expr"].into_iter().collect(),
-                delimiter_tokens: vec![("{", "}"), ("[", "]"), ("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_elm::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
         EmacsLisp => {
             let language_fn = tree_sitter_elisp::LANGUAGE;
             let language = tree_sitter::Language::new(language_fn);
@@ -417,20 +311,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                     .into_iter()
                     .collect(),
                 highlight_query: ts::Query::new(&language, tree_sitter_elisp::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Erlang => {
-            let language_fn = tree_sitter_erlang::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("{", "}"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_erlang::HIGHLIGHTS_QUERY)
                     .unwrap(),
                 sub_languages: vec![],
             }
@@ -448,47 +328,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 delimiter_tokens: vec![("(", ")"), ("{", "}"), ("[", "]")],
                 ignore_trailing_tokens: vec![],
                 highlight_query,
-                sub_languages: vec![],
-            }
-        }
-        FSharp => {
-            let language_fn = tree_sitter_fsharp::LANGUAGE_FSHARP;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string", "triple_quoted_string"].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("[", "]"), ("{", "}")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_fsharp::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-
-                sub_languages: vec![],
-            }
-        }
-        Fortran => {
-            let language_fn = tree_sitter_fortran::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string_literal", "number_literal"].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("(/", "/)"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_fortran::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Gleam => {
-            let language_fn = tree_sitter_gleam::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string"].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("[", "]"), ("{", "}")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_gleam::HIGHLIGHT_QUERY)
-                    .unwrap(),
                 sub_languages: vec![],
             }
         }
@@ -658,30 +497,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 sub_languages: vec![],
             }
         }
-        Julia => {
-            let language_fn = tree_sitter_julia::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [
-                    "string_literal",
-                    "prefixed_string_literal",
-                    "command_literal",
-                    "character_literal",
-                ]
-                .into_iter()
-                .collect(),
-                delimiter_tokens: vec![("{", "}"), ("[", "]"), ("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/julia.scm"),
-                )
-                .unwrap(),
-                sub_languages: vec![],
-            }
-        }
         Lua => {
             let language_fn = tree_sitter_lua::LANGUAGE;
             let language = tree_sitter::Language::new(language_fn);
@@ -714,23 +529,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                         .unwrap(),
                     parse_as: Bash,
                 }],
-            }
-        }
-        Newick => {
-            let language_fn = tree_sitter_newick::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/newick.scm"),
-                )
-                .unwrap(),
-                sub_languages: vec![],
             }
         }
         Nix => {
@@ -792,23 +590,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 ignore_trailing_tokens: vec![],
                 // TODO: why doesn't tree_sitter_ocaml::HIGHLIGHTS_QUERY work here?
                 highlight_query: ts::Query::new(&language, "").unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Pascal => {
-            let language_fn = tree_sitter_pascal::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/pascal.scm"),
-                )
-                .unwrap(),
                 sub_languages: vec![],
             }
         }
@@ -904,34 +685,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 sub_languages: vec![],
             }
         }
-        R => {
-            let language_fn = tree_sitter_r::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string", "special"].into_iter().collect(),
-                delimiter_tokens: vec![("{", "}"), ("(", ")"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_r::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Racket => {
-            let language_fn = tree_sitter_racket::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string", "byte_string", "regex", "here_string"]
-                    .into_iter()
-                    .collect(),
-                delimiter_tokens: vec![("{", "}"), ("(", ")"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_racket::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
         Ruby => {
             let language_fn = tree_sitter_ruby::LANGUAGE;
             let language = tree_sitter::Language::new(language_fn);
@@ -1008,34 +761,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                     ("namespace_selectors", ","),
                 ],
                 highlight_query: ts::Query::new(&language, tree_sitter_scala::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Scheme => {
-            let language_fn = tree_sitter_scheme::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string"].into_iter().collect(),
-                delimiter_tokens: vec![("{", "}"), ("(", ")"), ("[", "]")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_scheme::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Solidity => {
-            let language_fn = tree_sitter_solidity::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: ["string", "hex_string_literal", "unicode_string_literal"]
-                    .into_iter()
-                    .collect(),
-                delimiter_tokens: vec![("[", "]"), ("(", ")"), ("{", "}")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_solidity::HIGHLIGHT_QUERY)
                     .unwrap(),
                 sub_languages: vec![],
             }
@@ -1155,36 +880,6 @@ fn build_config(language: guess::Language) -> TreeSitterConfig {
                 ignore_trailing_tokens: vec![],
                 delimiter_tokens: vec![("{", "}"), ("(", ")"), ("[", "]")],
                 highlight_query: ts::Query::new(&language, tree_sitter_yaml::HIGHLIGHTS_QUERY)
-                    .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Verilog => {
-            let language_fn = tree_sitter_verilog::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-            TreeSitterConfig {
-                ignore_trailing_tokens: vec![],
-                language: language.clone(),
-                atom_nodes: ["integral_number"].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")"), ("[", "]"), ("begin", "end")],
-                highlight_query: ts::Query::new(
-                    &language,
-                    include_str!("../../vendored_parsers/highlights/verilog.scm"),
-                )
-                .unwrap(),
-                sub_languages: vec![],
-            }
-        }
-        Vhdl => {
-            let language_fn = tree_sitter_vhdl::LANGUAGE;
-            let language = tree_sitter::Language::new(language_fn);
-
-            TreeSitterConfig {
-                language: language.clone(),
-                atom_nodes: [].into_iter().collect(),
-                delimiter_tokens: vec![("(", ")")],
-                ignore_trailing_tokens: vec![],
-                highlight_query: ts::Query::new(&language, tree_sitter_vhdl::HIGHLIGHTS_QUERY)
                     .unwrap(),
                 sub_languages: vec![],
             }

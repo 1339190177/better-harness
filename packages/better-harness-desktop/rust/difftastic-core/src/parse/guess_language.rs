@@ -19,28 +19,18 @@ use strum::{EnumIter, IntoEnumIterator};
 /// corresponding tree-sitter parser.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub(crate) enum Language {
-    Ada,
-    Apex,
     Asm,
     Bash,
     C,
     Clojure,
     CMake,
-    CommonLisp,
     CPlusPlus,
     CSharp,
     Css,
-    Dart,
-    DeviceTree,
     Dockerfile,
     Elixir,
-    Elm,
     EmacsLisp,
-    Erlang,
     Fish,
-    FSharp,
-    Fortran,
-    Gleam,
     Go,
     Haskell,
     Hcl,
@@ -49,34 +39,25 @@ pub(crate) enum Language {
     JavaScript,
     JavascriptJsx,
     Json,
-    Julia,
     Lua,
     Make,
-    Newick,
     Nix,
     ObjC,
     OCaml,
     OCamlInterface,
-    Pascal,
     Perl,
     Php,
     Proto,
     Python,
     Qml,
-    R,
-    Racket,
     Ruby,
     Rust,
     Scala,
-    Scheme,
-    Solidity,
     Sql,
     Swift,
     Toml,
     TypeScript,
     TypeScriptTsx,
-    Verilog,
-    Vhdl,
     Xml,
     Yaml,
     Zig,
@@ -116,28 +97,18 @@ pub(crate) fn language_override_from_name(name: &str) -> Option<LanguageOverride
 /// The language name shown to the user.
 pub(crate) fn language_name(language: Language) -> &'static str {
     match language {
-        Ada => "Ada",
-        Apex => "Apex",
         Asm => "Assembly",
         Bash => "Bash",
         C => "C",
         Clojure => "Clojure",
         CMake => "CMake",
-        CommonLisp => "Common Lisp",
         CPlusPlus => "C++",
         CSharp => "C#",
         Css => "CSS",
-        Dart => "Dart",
-        DeviceTree => "Device Tree",
         Dockerfile => "Dockerfile",
         Elixir => "Elixir",
-        Elm => "Elm",
         EmacsLisp => "Emacs Lisp",
-        Erlang => "Erlang",
         Fish => "Fish",
-        FSharp => "F#",
-        Fortran => "Fortran",
-        Gleam => "Gleam",
         Go => "Go",
         Haskell => "Haskell",
         Hcl => "HCL",
@@ -146,34 +117,25 @@ pub(crate) fn language_name(language: Language) -> &'static str {
         JavaScript => "JavaScript",
         JavascriptJsx => "JavaScript JSX",
         Json => "JSON",
-        Julia => "Julia",
         Lua => "Lua",
         Make => "Make",
-        Newick => "Newick",
         Nix => "Nix",
         ObjC => "Objective-C",
         OCaml => "OCaml",
         OCamlInterface => "OCaml Interface",
-        Pascal => "Pascal",
         Perl => "Perl",
         Php => "PHP",
         Proto => "Proto",
         Python => "Python",
         Qml => "QML",
-        R => "R",
-        Racket => "Racket",
         Ruby => "Ruby",
         Rust => "Rust",
         Scala => "Scala",
-        Scheme => "Scheme",
-        Solidity => "Solidity",
         Sql => "SQL",
         Swift => "Swift",
         Toml => "TOML",
         TypeScript => "TypeScript",
         TypeScriptTsx => "TypeScript TSX",
-        Verilog => "Verilog",
-        Vhdl => "VHDL",
         Xml => "XML",
         Yaml => "YAML",
         Zig => "Zig",
@@ -187,7 +149,6 @@ use crate::lines::split_on_newlines;
 /// File globs that identify languages based on the file path.
 pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
     let glob_strs: &'static [&'static str] = match language {
-        Ada => &["*.ada", "*.adb", "*.ads"],
         Asm => &["*.asm", "*.s", "*.S"],
         Bash => &[
             "*.bash",
@@ -237,14 +198,12 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
             "zshenv",
             "zshrc",
         ],
-        Apex => &["*.apexc", "*.trigger"],
         C => &["*.c"],
         Clojure => &[
             "*.bb", "*.boot", "*.clj", "*.cljc", "*.clje", "*.cljs", "*.cljx", "*.edn", "*.joke",
             "*.joker",
         ],
         CMake => &["*.cmake", "*.cmake.in", "CMakeLists.txt"],
-        CommonLisp => &["*.lisp", "*.lsp", "*.asd"],
         // Treat .h as C++ rather than C. This is an arbitrary choice, but
         // C++ is more widely used than C according to
         // https://madnight.github.io/githut/
@@ -255,8 +214,6 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
         ],
         CSharp => &["*.cs"],
         Css => &["*.css"],
-        Dart => &["*.dart"],
-        DeviceTree => &["*.dts", "*.dtsi", "*.dtso", "*.its"],
         Dockerfile => &[
             "Dockerfile",
             "Containerfile",
@@ -264,26 +221,9 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
             "*.dockerfile",
             "*.containerfile",
         ],
-        Elm => &["*.elm"],
         EmacsLisp => &["*.el", ".emacs", "_emacs", "Cask"],
         Elixir => &["*.ex", "*.exs"],
-        Erlang => &[
-            "*.erl",
-            "*.app.src",
-            "*.es",
-            "*.escript",
-            "*.hrl",
-            "*.xrl",
-            "*.yrl",
-            "Emakefile",
-            "rebar.config",
-            "rebar.config.lock",
-            "rebar.lock",
-        ],
         Fish => &["*.fish"],
-        FSharp => &["*.fs", "*.fsx", "*.fsi"],
-        Fortran => &["*.f", "*.for", "*.f90", "*.F", "*.FOR", "*.F90"],
-        Gleam => &["*.gleam"],
         Go => &["*.go"],
         Haskell => &["*.hs"],
         Hcl => &["*.hcl", "*.nomad", "*.tf", "*.tfvars", "*.workflow"],
@@ -321,7 +261,6 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
             "flake.lock",
         ],
         JavascriptJsx => &["*.jsx"],
-        Julia => &["*.jl"],
         Lua => &["*.lua"],
         Make => &[
             "*.mak",
@@ -344,12 +283,10 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
             "makefile.sco",
             "mkfile",
         ],
-        Newick => &["*.nhx", "*.nwk", "*.nh"],
         Nix => &["*.nix"],
         ObjC => &["*.m"],
         OCaml => &["*.ml"],
         OCamlInterface => &["*.mli"],
-        Pascal => &["*.pas", "*.dfm", "*.dpr", "*.lpr", "*.pascal"],
         Perl => &["*.pm", "*.pl"],
         Php => &[
             "*.php", "*.phtml", "*.php3", "*.php4", "*.php5", "*.php7", "*.phps",
@@ -357,8 +294,6 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
         Proto => &["*.proto"],
         Python => &["*.py", "*.py3", "*.pyi", "*.bzl", "TARGETS", "BUCK", "DEPS"],
         Qml => &["*.qml"],
-        R => &["*.R", "*.r", "*.rd", "*.rsx", ".Rprofile", "expr-dist"],
-        Racket => &["*.rkt"],
         Ruby => &[
             "*.rb",
             "*.builder",
@@ -369,8 +304,6 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
         ],
         Rust => &["*.rs"],
         Scala => &["*.scala", "*.sbt", "*.sc"],
-        Scheme => &["*.scm", "*.sch", "*.ss"],
-        Solidity => &["*.sol"],
         Sql => &["*.sql", "*.pgsql"],
         Swift => &["*.swift"],
         Toml => &[
@@ -384,8 +317,6 @@ pub(crate) fn language_globs(language: Language) -> Vec<glob::Pattern> {
         ],
         TypeScript => &["*.ts", "*.cts", "*.mts"],
         TypeScriptTsx => &["*.tsx"],
-        Verilog => &["*.v", "*.sv", "*.vh"],
-        Vhdl => &["*.vhdl", "*.vhd"],
         Xml => &[
             "*.ant",
             "*.csproj",
@@ -522,45 +453,34 @@ fn from_emacs_mode_header(src: &str) -> Option<Language> {
             _ => "".into(),
         };
         return Some(match mode_name.to_ascii_lowercase().trim() {
-            "ada" => Ada,
             "c" => C,
             "clojure" => Clojure,
             "csharp" => CSharp,
             "css" => Css,
-            "dart" => Dart,
             "c++" => CPlusPlus,
             "elixir" => Elixir,
-            "elm" => Elm,
             "emacs-lisp" => EmacsLisp,
             "fish" => Fish,
-            "fsharp" => FSharp,
-            "fortran" => Fortran,
-            "gleam" => Gleam,
             "go" => Go,
             "haskell" => Haskell,
             "hcl" => Hcl,
             "html" => Html,
             "java" => Java,
             "js" | "js2" => JavaScript,
-            "lisp" => CommonLisp,
             "nxml" => Xml,
             "objc" => ObjC,
             "perl" => Perl,
             "python" => Python,
-            "racket" => Racket,
             "rjsx" => JavascriptJsx,
             "ruby" => Ruby,
             "rust" => Rust,
             "scala" => Scala,
             "sh" => Bash,
-            "solidity" => Solidity,
             "sql" => Sql,
             "swift" => Swift,
             "toml" => Toml,
             "tuareg" => OCaml,
             "typescript" => TypeScript,
-            "verilog" => Verilog,
-            "vhdl" => Vhdl,
             "yaml" => Yaml,
             "zig" => Zig,
             _ => continue,
@@ -584,9 +504,7 @@ fn from_shebang(src: &str) -> Option<Language> {
                         return Some(Bash)
                     }
                     "tcc" => return Some(C),
-                    "lisp" | "sbcl" | "ccl" | "clisp" | "ecl" => return Some(CommonLisp),
                     "elixir" => return Some(Elixir),
-                    "escript" => return Some(Erlang),
                     "fish" => return Some(Fish),
                     "runghc" | "runhaskell" | "runhugs" => return Some(Haskell),
                     "chakra" | "d8" | "gjs" | "js" | "node" | "nodejs" | "qjs" | "rhino" | "v8"
@@ -594,7 +512,6 @@ fn from_shebang(src: &str) -> Option<Language> {
                     "ocaml" | "ocamlrun" | "ocamlscript" => return Some(OCaml),
                     "perl" => return Some(Perl),
                     "python" | "python2" | "python3" => return Some(Python),
-                    "Rscript" => return Some(R),
                     "ruby" | "macruby" | "rake" | "jruby" | "rbx" => return Some(Ruby),
                     "swift" => return Some(Swift),
                     "deno" | "ts-node" => return Some(TypeScript),
@@ -678,15 +595,15 @@ mod tests {
     #[test]
     fn test_guess_by_emacs_mode_simple() {
         let path = Path::new("foo");
-        assert_eq!(guess(path, "; -*- mode: Lisp -*-", &[]), Some(CommonLisp));
+        assert_eq!(guess(path, "; -*- mode: Clojure -*-", &[]), Some(Clojure));
     }
 
     #[test]
     fn test_guess_by_emacs_mode() {
         let path = Path::new("foo");
         assert_eq!(
-            guess(path, "; -*- mode: Lisp; eval: (auto-fill-mode 1); -*-", &[]),
-            Some(CommonLisp)
+            guess(path, "; -*- mode: Clojure; eval: (auto-fill-mode 1); -*-", &[]),
+            Some(Clojure)
         );
     }
 
@@ -694,8 +611,8 @@ mod tests {
     fn test_guess_by_emacs_mode_second_line() {
         let path = Path::new("foo");
         assert_eq!(
-            guess(path, "#!/bin/bash\n; -*- mode: Lisp; -*-", &[]),
-            Some(CommonLisp)
+            guess(path, "#!/bin/bash\n; -*- mode: Clojure; -*-", &[]),
+            Some(Clojure)
         );
     }
 
