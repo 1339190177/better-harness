@@ -58,26 +58,28 @@ if (!test) {
     await stage('harness-box-exec');
     await stage('harness-box-host');
   }
-}
-
-if (!test && process.platform === 'darwin') {
-  const binaries = join(root, 'dist', 'rust', 'release');
   // The engine is MIT-licensed third-party code vendored into this repository,
-  // so its notice ships in the service bundle that links it.
+  // so its notice is staged beside the binaries every installer copies from,
+  // rather than inside the cargo cache that packaging ignores.
   await writeFile(
-    join(binaries, 'harness-diff-service.NOTICES.txt'),
+    join(root, 'dist', 'native', 'harness-diff-service.NOTICES.txt'),
     (await Promise.all([
       readFile(join(root, 'rust', 'difftastic-core', 'NOTICE.md'), 'utf8'),
       readFile(join(root, 'rust', 'difftastic-core', 'LICENSE'), 'utf8'),
     ])).join('\n'),
   );
+}
+
+if (!test && process.platform === 'darwin') {
+  const binaries = join(root, 'dist', 'rust', 'release');
+  const native = join(root, 'dist', 'native');
   for (const binary of [
     'harness-oxc-client', 'harness-oxc-xpc',
     'harness-acp-client', 'harness-acp-xpc',
     'harness-evidence-client', 'harness-evidence-xpc',
     'harness-diff-client', 'harness-diff-xpc',
   ]) {
-    await cp(join(binaries, binary), join(root, 'dist', 'native', binary));
+    await cp(join(binaries, binary), join(native, binary));
   }
   const oxcApp = join(root, 'dist', 'native', 'Harness OXC.app');
   await installNsxpc(oxcApp, binaries, { development: true });
@@ -89,7 +91,9 @@ if (!test && process.platform === 'darwin') {
   await installEvidenceXpc(evidenceApp, binaries, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', evidenceApp], { stdio: 'inherit' });
   const diffApp = join(root, 'dist', 'native', 'Harness Diff.app');
-  await installDiffXpc(diffApp, binaries, { development: true });
+  // The diff installer reads the engine's third-party notice from the staging
+  // directory, beside the driver it ships inside the service bundle.
+  await installDiffXpc(diffApp, native, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', diffApp], { stdio: 'inherit' });
   if (box) {
     for (const binary of ['harness-box-client', 'harness-box-xpc']) {

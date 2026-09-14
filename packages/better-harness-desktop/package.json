@@ -73,7 +73,8 @@
             "harness-oxc-service*",
             "harness-acp-host*",
             "harness-evidence-host*",
-            "harness-diff-host*"
+            "harness-diff-host*",
+            "harness-diff-service.NOTICES.txt"
           ]
         }
       ]
@@ -92,7 +93,8 @@
             "harness-oxc-service*",
             "harness-acp-host*",
             "harness-evidence-host*",
-            "harness-diff-host*"
+            "harness-diff-host*",
+            "harness-diff-service.NOTICES.txt"
           ]
         }
       ]

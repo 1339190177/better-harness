@@ -2,7 +2,7 @@ import { cp, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installNsxpc, installEsbuildXpc, esbuildServiceId, installAcpXpc, installEvidenceXpc, serviceId, acpServiceId, evidenceServiceId } from './nsxpc-bundle.mjs';
+import { installNsxpc, installEsbuildXpc, esbuildServiceId, installAcpXpc, installEvidenceXpc, installDiffXpc, serviceId, acpServiceId, evidenceServiceId, diffServiceId } from './nsxpc-bundle.mjs';
 
 export default async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
@@ -16,6 +16,10 @@ export default async function afterPack(context) {
   // the `harness-acp-client` bridge lands in Contents/MacOS next to harness-oxc-client.
   await installAcpXpc(app, native);
   await installEvidenceXpc(app, native);
+  // The structural-diff service is the heaviest native call, so its driver only
+  // ships inside the .xpc bundle and Studio's bridge goes in Contents/MacOS,
+  // exactly like the OXC, ACP and Evidence bridges above.
+  await installDiffXpc(app, native);
   // Also keep the plain driver in Resources/native so Windows/Linux and macOS
   // share one packaged-path rule; macOS itself now reaches it through the bundle.
   const nativeResources = join(app, 'Contents', 'Resources', 'native');
@@ -36,6 +40,9 @@ export default async function afterPack(context) {
     join(app, 'Contents', 'XPCServices', `${evidenceServiceId}.xpc`, 'Contents', 'MacOS', 'harness-evidence-host'),
     join(app, 'Contents', 'XPCServices', `${evidenceServiceId}.xpc`),
     join(app, 'Contents', 'MacOS', 'harness-evidence-client'),
+    join(app, 'Contents', 'XPCServices', `${diffServiceId}.xpc`, 'Contents', 'MacOS', 'harness-diff-host'),
+    join(app, 'Contents', 'XPCServices', `${diffServiceId}.xpc`),
+    join(app, 'Contents', 'MacOS', 'harness-diff-client'),
     join(nativeResources, 'harness-acp-host'),
     join(nativeResources, 'harness-evidence-host'),
   ]) {
