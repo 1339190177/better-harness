@@ -48,7 +48,7 @@ project `.kimi-code/skills/`), then runs `/skill:better-harness`.
 | Kimi Code | Analysis-capable source-local host | `.kimi-plugin/plugin.json` | `scripts/agent-customize/providers/kimi.mjs` | `scripts/session-analysis/platforms/kimi.mjs` | self-contained HTML + Markdown | `AGENTS.md` + `~/.kimi-code/skills` + project `.kimi-code/skills`/`.kimi/skills` + `~/.kimi-code/mcp.json` | `harness evidence-bundle --platform kimi` -> validated `html` render |
 | WorkBuddy | Analysis-capable source-local host | none (skills install into `~/.workbuddy/skills`) | `scripts/agent-customize/providers/workbuddy.mjs` | `scripts/session-analysis/platforms/workbuddy.mjs` | self-contained HTML + Markdown | `~/.workbuddy` `AGENTS.md` + identity files + `.agents` + `AGENTS.md` | `session-analysis --platform workbuddy sources` -> validated `html` render |
 | Grok | Analysis-capable source-local host | none (skills install into `~/.grok/skills`) | `scripts/agent-customize/providers/grok.mjs` | `scripts/session-analysis/platforms/grok.mjs` | self-contained HTML + Markdown | `~/.grok` + `.grok` + `.agents` + `AGENTS.md` | `session-analysis --platform grok sources` -> skill symlink -> validated `html` render |
-| DeepSeek Harness (DSH) | Verified install/discovery for headless/base and Web `standard`/`code`/`cordis`; shared read-only analysis over developer-preview configured and Session evidence | local DSH Cordis policy at `scripts/dsh-skill-discovery/index.mjs`; no lifecycle shell | `scripts/agent-customize/providers/dsh.mjs`; filesystem Skills and cwd-sensitive Instructions, configured-not-observed | `scripts/session-analysis/platforms/dsh.mjs`; `dsh-v1` for the audited format-0 session-evidence slice from DSH `dsh-v0.1.0-rc.7` and `dsh-v0.1.0-rc.8`, raw `.jsonl` and feature-detected `.jsonl.zstd` | self-contained HTML + Markdown | canonical Skill from the complete root; model Skill calls rejected | `npm run test:dsh-native`; `npm run test:dsh-configured-assets-native`; validated portable `html` render and native output-root inertness |
+| DeepSeek Harness (DSH) | Verified install/discovery for headless/base and Web `standard`/`code`/`cordis`; shared read-only analysis over developer-preview configured and Session evidence | `.dsh-plugin/cordis.patch.yml` host shell (one Cordis bundle row naming `scripts/dsh-skill-discovery/bundle.mjs`, which loads the local policy at `scripts/dsh-skill-discovery/index.mjs`); no lifecycle shell | `scripts/agent-customize/providers/dsh.mjs`; filesystem Skills and cwd-sensitive Instructions, configured-not-observed | `scripts/session-analysis/platforms/dsh.mjs`; `dsh-v1` for the audited format-0 session-evidence slice from DSH `dsh-v0.1.0-rc.7` and `dsh-v0.1.0-rc.8`, raw `.jsonl` and feature-detected `.jsonl.zstd` | self-contained HTML + Markdown | canonical Skill from the complete root; model Skill calls rejected | `dsh plugin --profile <name> add @qoder-ai/better-harness` -> `npm run test:dsh-bundle`; `npm run test:dsh-native`; `npm run test:dsh-configured-assets-native`; validated portable `html` render and native output-root inertness |
 
 ## Read-only Plugin Lifecycle
 
@@ -223,23 +223,40 @@ edit host settings, or register an `apply` path.
   enough for `/better-harness`).
 - DeepSeek Harness has independent bounded capabilities. Verified
   install/discovery uses DSH `0.1.1-rc.2` at audited source
-  `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`. The sole supported discovery
-  route points the active DSH `skill-filesystem.customSkillDirs` at the
-  absolute `<BETTER_HARNESS_ROOT>/skills` directory and loads the local Cordis
-  policy at `scripts/dsh-skill-discovery/index.mjs` with the same complete root.
-  The policy verifies the winning DSH definition's `custom` source, absolute
-  `SKILL.md` path, directory `resourceBase`, two-parent root invariant, and
-  required `scripts/`, `references/`, `models/`, and `templates/` resources
+  `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`. The supported discovery route is
+  the shipped host shell:
+  `dsh plugin --profile <name> add @qoder-ai/better-harness` installs the
+  package as a profile dependency, DSH
+  reconciles the `dsh.bundle.patch` declaration into `dsh.profile.bundles`, and
+  the single row in `.dsh-plugin/cordis.patch.yml` loads
+  `scripts/dsh-skill-discovery/bundle.mjs`. That entry self-locates its own
+  package root, publishes `skills/better-harness/SKILL.md` into the global
+  skills layer, and attaches the local Cordis policy at
+  `scripts/dsh-skill-discovery/index.mjs`, so no absolute Better Harness path is
+  configured and moving or reinstalling the package needs no edits. Removing the
+  package removes the row and disposes the provider and policy with it. The
+  manual equivalent remains supported for a profile that cannot carry bundle
+  layers: point the active `skill-filesystem.customSkillDirs` at the absolute
+  `<BETTER_HARNESS_ROOT>/skills` directory and load the same policy with that
+  root; on that route, moving the root means updating every configured path.
+  Either way the policy verifies the winning DSH definition's `custom` source,
+  absolute `SKILL.md` path, directory `resourceBase`, two-parent root invariant,
+  and required `scripts/`, `references/`, `models/`, and `templates/` resources
   before direct `/better-harness` injection. It rejects model-facing
   `skill({ name: "better-harness" })` calls without changing shared Skill
-  frontmatter or other hosts. The route is qualified for headless/base and for
-  a Web user preset copied from `standard`, `code`, or `cordis`, where the
-  active scoped `skill-filesystem` row is edited. Web `minimal` mounts no Skill
-  loader and remains unsupported. Project `.dsh/skills` and `.agents/skills`
-  candidates retain DSH precedence; a same-name shadow fails canonical
-  verification. Copies, symlinks/junctions, relative paths, and literal `~`
-  values are not canonical routes. Moving the Better Harness root requires
-  updating every configured absolute path. The credential-free native owner
+  frontmatter or other hosts. Both routes are qualified for headless/base and
+  for a Web user preset copied from `standard`, `code`, or `cordis`; the bundle
+  route additionally reaches sessions regardless of which preset is selected,
+  because it registers globally rather than by editing the active scoped
+  `skill-filesystem` row. Web `minimal` mounts no Skill loader and remains
+  unsupported. DSH does not cleanly reject two providers named
+  `better-harness` in one layer: a host probe raised no error and the catalog kept answering
+  with the other provider's candidate in both mount orders, so a deployment that adds the shell
+  must drop any out-of-tree wrapper row in the same change. Project `.dsh/skills` and
+  `.agents/skills` candidates retain DSH precedence; a same-name shadow fails
+  canonical verification. Copies, symlinks/junctions, relative paths, and
+  literal `~` values are not canonical routes. The credential-free offline
+  chain smoke is `npm run test:dsh-bundle`, and the credential-free native owner
   smoke is `npm run test:dsh-native`.
 - Its developer-preview configured-assets provider at
   `scripts/agent-customize/providers/dsh.mjs` reports native filesystem Skill

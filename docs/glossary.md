@@ -79,7 +79,7 @@ for extension surfaces, read [community.md](community.md).
 |---|---|---|
 | Skill | A repeatable agent workflow defined by `SKILL.md` frontmatter plus a concise workflow. | [community.md](community.md); report use: [report contract](../skills/better-harness/SKILL.md#report-output) |
 | Host adapter | Per-host discovery and evidence-shape glue (e.g. Qoder, Codex); keeps the engine host-neutral. | [adapters/README.md](adapters/README.md) |
-| Host shell | Thin host metadata (`.claude-plugin/`, `.qoder-plugin/`, `.cursor-plugin/`, `.codex-plugin/`, `.github/plugin/`, `qwen-extension.json`, `.kimi-plugin/`, the `pi` manifest in `package.json`, or a future lifecycle shell) that exposes canonical behavior without owning product logic; the public npm package ships all seven current metadata roots, while the Qoder runtime bundle includes only `.qoder-plugin/`. | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Host shell | Thin host metadata (`.claude-plugin/`, `.qoder-plugin/`, `.cursor-plugin/`, `.codex-plugin/`, `.github/plugin/`, `qwen-extension.json`, `.kimi-plugin/`, `.dsh-plugin/`, the `pi` manifest in `package.json`, or a future lifecycle shell) that exposes canonical behavior without owning product logic; the public npm package ships all eight current metadata roots, while the Qoder runtime bundle includes only `.qoder-plugin/`. | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Canonical owner | The single directory that owns a behavior's product judgment; host shells and mirrors point back to it. | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ## "I Want To… → Use"

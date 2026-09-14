@@ -40,10 +40,16 @@
       "./prompts"
     ]
   },
+  "dsh": {
+    "bundle": {
+      "patch": "./.dsh-plugin/cordis.patch.yml"
+    }
+  },
   "files": [
     ".claude-plugin/",
     ".codex-plugin/",
     ".cursor-plugin/",
+    ".dsh-plugin/",
     ".github/plugin/",
     ".qoder-plugin/",
     ".kimi-plugin/",
@@ -109,6 +115,7 @@
     "test:ci": "vitest run --config vitest.ci.config.mjs",
     "test:dsh-configured-assets-native": "node scripts/dsh-configured-assets/native-smoke.mjs",
     "test:dsh-native": "node scripts/dsh-skill-discovery/native-smoke.mjs",
+    "test:dsh-bundle": "node scripts/dsh-skill-discovery/bundle-smoke.mjs",
     "better-harness-desktop:build": "npm run build -w @qoder-ai/better-harness-desktop",
     "better-harness-desktop:dev": "npm start -w @qoder-ai/better-harness-desktop",
     "better-harness-desktop:test": "npm test -w @qoder-ai/better-harness-desktop",

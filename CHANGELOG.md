@@ -3,6 +3,15 @@
 This file records notable public changes to Better Harness. Entries describe
 observable behavior and compatibility, not every internal refactor.
 
+## Unreleased
+
+### Added
+
+- DeepSeek Harness now ships a host shell bundle entry so
+  `dsh plugin --profile <name> add @qoder-ai/better-harness` registers skill
+  discovery and the explicit-only policy automatically, replacing the manual
+  `customSkillDirs` and Cordis policy row configuration.
+
 ## 0.7.0-alpha2 - 2026-09-12
 
 ### Added
