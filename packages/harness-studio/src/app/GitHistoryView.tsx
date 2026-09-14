@@ -30,14 +30,30 @@ import {
   type GitLogPage,
   type GitRefsSnapshot,
 } from "../contracts/git-history.js";
+import { isStructuralDiff, type StructuralDiff } from "../contracts/structural-diff.js";
 import { ArtifactCodeView } from "./code/ArtifactCodeView.js";
+import { StructuralDiffView } from "./code/StructuralDiffView.js";
 import { studioLocale } from "./i18n/index.js";
 import { PaneSash } from "./shell/PaneSash.js";
 import { ToolbarActions } from "./shell/ToolbarActions.js";
 
 const PAGE_SIZE = 40;
+/** The native host was never reachable, which is an environment fact, not a file fact. */
+const DIFF_HOST_UNAVAILABLE = "DIFF_HOST_UNAVAILABLE";
 const GIT_LANE_COLOR_TOKENS = [5, 4, 2, 1, 6, 7, 3] as const;
 type NarrowPane = "refs" | "history" | "detail";
+/** Which reading of a file's change the detail pane is showing. */
+type DiffMode = "textual" | "structural";
+/** Everything the detail pane needs to offer and render the structural reading. */
+interface StructuralPanel {
+  enabled: boolean;
+  mode: DiffMode;
+  result?: StructuralDiff;
+  loading: boolean;
+  failure?: string;
+  notice?: string;
+  onChange: (mode: DiffMode) => void;
+}
 
 /** The width below which the panes stack behind tabs, matching the stylesheet. */
 const NARROW_QUERY = "(max-width: 760px)";
@@ -63,7 +79,7 @@ const PREFETCH_MARGIN = 160;
 /** Rows a `PageDown` or `PageUp` travels, matching the sidebar's coarse step. */
 const KEYBOARD_PAGE_ROWS = 10;
 
-export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX.Element {
+export function GitHistoryView(props: { dateRange: StudioDateRange; structuralDiffEnabled: boolean }): React.JSX.Element {
   const { t } = useTranslation("git");
   const [refs, setRefs] = useState<GitRefsSnapshot>();
   const [commits, setCommits] = useState<GitHistoryCommit[]>([]);
@@ -79,6 +95,11 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
   const [detail, setDetail] = useState<GitCommitDetail>();
   const [selectedFile, setSelectedFile] = useState<string>();
   const [patch, setPatch] = useState<GitFilePatch>();
+  const [diffMode, setDiffMode] = useState<DiffMode>("textual");
+  const [structural, setStructural] = useState<StructuralDiff>();
+  const [structuralLoading, setStructuralLoading] = useState(false);
+  const [structuralFailure, setStructuralFailure] = useState<string>();
+  const [structuralNotice, setStructuralNotice] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [refsLoading, setRefsLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -103,6 +124,7 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
   const pageLoadRequest = useRef(false);
   const detailRequest = useRef(0);
   const patchRequest = useRef(0);
+  const structuralRequest = useRef(0);
 
   useEffect(() => {
     const timer = globalThis.setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -210,6 +232,7 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
     setDetail(undefined);
     setSelectedFile(undefined);
     setPatch(undefined);
+    resetStructural();
     setDetailFailure(undefined);
     setDetailLoading(true);
     setNarrowPane("detail");
@@ -231,6 +254,7 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
     const requestId = ++patchRequest.current;
     setSelectedFile(file.path);
     setPatch(undefined);
+    resetStructural();
     setDetailFailure(undefined);
     setPatchLoading(true);
     try {
@@ -245,6 +269,57 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
     } finally {
       if (requestId === patchRequest.current) setPatchLoading(false);
     }
+  }
+
+  /**
+   * Every file answers in the textual reading first, so a structural selection
+   * is discarded whenever the selection moves: the pane must never show one
+   * file's structural diff beside another file's patch.
+   */
+  function resetStructural(): void {
+    structuralRequest.current += 1;
+    setDiffMode("textual");
+    setStructural(undefined);
+    setStructuralFailure(undefined);
+    setStructuralNotice(undefined);
+    setStructuralLoading(false);
+  }
+
+  async function loadStructural(): Promise<void> {
+    if (selectedSha === undefined || selectedFile === undefined) return;
+    const requestId = ++structuralRequest.current;
+    setStructural(undefined);
+    setStructuralFailure(undefined);
+    setStructuralNotice(undefined);
+    setStructuralLoading(true);
+    try {
+      const params = new URLSearchParams({ path: selectedFile });
+      const response = await fetch(`/api/git/commits/${selectedSha}/structural-diff?${params}`, { cache: "no-store" });
+      const payload: unknown = await response.json();
+      if (requestId !== structuralRequest.current) return;
+      if (!response.ok) {
+        // An environment without the native host is not a per-file failure, so
+        // the reader keeps the textual patch and is told why instead of being
+        // left on a reading this build cannot produce.
+        if (apiErrorCode(payload) === DIFF_HOST_UNAVAILABLE) {
+          setDiffMode("textual");
+          setStructuralNotice(t("structural.unavailable"));
+          return;
+        }
+        throw new Error(apiError(payload, t("structural.failed")));
+      }
+      if (!isStructuralDiff(payload)) throw new Error("The structural diff uses an unsupported contract.");
+      setStructural(payload);
+    } catch (error) {
+      if (requestId === structuralRequest.current) setStructuralFailure(errorMessage(error, t));
+    } finally {
+      if (requestId === structuralRequest.current) setStructuralLoading(false);
+    }
+  }
+
+  function changeDiffMode(mode: DiffMode): void {
+    setDiffMode(mode);
+    if (mode === "structural" && structural === undefined && !structuralLoading) void loadStructural();
   }
 
   // One ref at a time: the log answers "what is reachable from here", and a set
@@ -421,7 +496,7 @@ export function GitHistoryView(props: { dateRange: StudioDateRange }): React.JSX
           ? <ErrorState message={detailFailure} />
           : detail === undefined
             ? <div className="git-detail-empty"><GitCommit aria-hidden="true" size={24} /><p>{t("detail.selectHint")}</p></div>
-            : <CommitDetail detail={detail} selectedFile={selectedFile} patch={patch} patchLoading={patchLoading} failure={detailFailure} stacked={stacked} onSelectFile={(file) => void selectFile(file)} />}
+            : <CommitDetail detail={detail} selectedFile={selectedFile} patch={patch} patchLoading={patchLoading} failure={detailFailure} stacked={stacked} structural={{ enabled: props.structuralDiffEnabled, mode: diffMode, result: structural, loading: structuralLoading, failure: structuralFailure, notice: structuralNotice, onChange: changeDiffMode }} onSelectFile={(file) => void selectFile(file)} />}
     </section>
   </main>;
 }
@@ -623,7 +698,7 @@ function CommitGraph(props: { commit: GitHistoryCommit; laneCount: number }): Re
  * detail pane: the patch is what the reader came for, so it takes the full
  * height of the pane and the message shares the file list's column.
  */
-function CommitDetail(props: { detail: GitCommitDetail; selectedFile?: string; patch?: GitFilePatch; patchLoading: boolean; failure?: string; stacked: boolean; onSelectFile: (file: GitCommitFileChange) => void }): React.JSX.Element {
+function CommitDetail(props: { detail: GitCommitDetail; selectedFile?: string; patch?: GitFilePatch; patchLoading: boolean; failure?: string; stacked: boolean; structural: StructuralPanel; onSelectFile: (file: GitCommitFileChange) => void }): React.JSX.Element {
   const { t } = useTranslation("git");
   const { commit, files } = props.detail;
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
@@ -639,6 +714,15 @@ function CommitDetail(props: { detail: GitCommitDetail; selectedFile?: string; p
     return () => observer.disconnect();
   }, []);
   const measured = frameHeight > 0;
+  // The switch is offered only where both readings exist. A binary file, an
+  // empty patch, or a failed load has one reading, and a control there would
+  // promise a comparison the engine cannot make.
+  const readable = props.structural.enabled
+    && !props.patchLoading
+    && props.failure === undefined
+    && props.patch !== undefined
+    && !props.patch.binary
+    && props.patch.patch.trim() !== "";
   const messageMax = measured ? Math.max(MESSAGE_HEIGHT.min, frameHeight - FILES_MIN_HEIGHT - SASH_SIZE) : MESSAGE_HEIGHT.default;
   const messageHeight = Math.min(Math.max(height ?? MESSAGE_HEIGHT.default, MESSAGE_HEIGHT.min), messageMax);
   return <div
@@ -668,17 +752,46 @@ function CommitDetail(props: { detail: GitCommitDetail; selectedFile?: string; p
     />
     <aside className="git-changed-files"><header><strong>{t("detail.changedFiles")}</strong><span>{files.length} · <i>+{additions}</i> / <em>−{deletions}</em></span></header><div>{files.map((file) => <button key={`${file.previousPath ?? ""}:${file.path}`} type="button" aria-pressed={props.selectedFile === file.path} onClick={() => props.onSelectFile(file)}><b data-status={file.status}>{fileStatusLetter(file.status)}</b><span><strong>{file.path.split("/").at(-1)}</strong><small>{file.path}</small>{file.previousPath !== undefined && <small>{t("detail.from", { path: file.previousPath })}</small>}</span><code>{file.binary ? "binary" : `+${file.additions} / −${file.deletions}`}</code></button>)}</div></aside>
     <section className="git-file-diff" aria-label={t("detail.patchAria")}>
-      {props.patchLoading
-        ? <LoadingState label={t("detail.loadingPatch")} />
-        : props.failure !== undefined
-          ? <ErrorState message={props.failure} />
-          : props.patch === undefined
-            ? <div className="git-diff-empty"><FileCode aria-hidden="true" size={22} /><p>{t("detail.selectFileHint")}</p></div>
-            : props.patch.binary || props.patch.patch.trim() === ""
-              ? <div className="git-diff-empty"><FileCode aria-hidden="true" size={22} /><p>{props.patch.binary ? t("detail.binaryPatch") : t("detail.noTextPatch")}</p></div>
-              : <ArtifactCodeView mode="diff" patch={props.patch.patch} label={t("detail.patchLabel", { path: props.patch.path })} />}
+      {readable && <DiffModeSwitch mode={props.structural.mode} onChange={props.structural.onChange} />}
+      {props.structural.notice !== undefined && <p className="git-diff-notice" role="status">{props.structural.notice}</p>}
+      {props.structural.mode === "structural"
+        ? <StructuralReading panel={props.structural} path={props.patch?.path ?? ""} />
+        : props.patchLoading
+          ? <LoadingState label={t("detail.loadingPatch")} />
+          : props.failure !== undefined
+            ? <ErrorState message={props.failure} />
+            : props.patch === undefined
+              ? <div className="git-diff-empty"><FileCode aria-hidden="true" size={22} /><p>{t("detail.selectFileHint")}</p></div>
+              : props.patch.binary || props.patch.patch.trim() === ""
+                ? <div className="git-diff-empty"><FileCode aria-hidden="true" size={22} /><p>{props.patch.binary ? t("detail.binaryPatch") : t("detail.noTextPatch")}</p></div>
+                : <ArtifactCodeView mode="diff" patch={props.patch.patch} label={t("detail.patchLabel", { path: props.patch.path })} />}
     </section>
   </div>;
+}
+
+/**
+ * Two pressable readings of the same change. Pressed buttons are used rather
+ * than a tablist because both readings show at once in the same region: there
+ * are no panels to own, so there is nothing for `aria-controls` to name.
+ */
+function DiffModeSwitch(props: { mode: DiffMode; onChange: (mode: DiffMode) => void }): React.JSX.Element {
+  const { t } = useTranslation("git");
+  return <div className="git-diff-mode" role="group" aria-label={t("structural.modeAria")}>
+    {(["textual", "structural"] as const).map((mode) => <button
+      key={mode}
+      type="button"
+      aria-pressed={props.mode === mode}
+      title={mode === "structural" ? t("structural.switchTitle") : undefined}
+      onClick={() => props.onChange(mode)}
+    >{t(`structural.${mode}`)}</button>)}
+  </div>;
+}
+
+function StructuralReading(props: { panel: StructuralPanel; path: string }): React.JSX.Element {
+  const { t } = useTranslation("git");
+  if (props.panel.failure !== undefined) return <ErrorState message={props.panel.failure} />;
+  if (props.panel.result === undefined) return <LoadingState label={t("structural.loading")} />;
+  return <StructuralDiffView diff={props.panel.result} label={t("structural.label", { path: props.path })} />;
 }
 
 function LoadingState(props: { label: string }): React.JSX.Element { return <div className="git-loading" role="status"><SpinnerGap aria-hidden="true" size={16} className="spin" /><span>{props.label}</span></div>; }
@@ -737,6 +850,11 @@ function fileStatusLetter(status: GitCommitFileChange["status"]): string {
 
 function apiError(payload: unknown, fallback: string): string {
   return payload !== null && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : fallback;
+}
+
+/** The server's stable error code, when the body carried one. */
+function apiErrorCode(payload: unknown): string | undefined {
+  return payload !== null && typeof payload === "object" && "code" in payload && typeof payload.code === "string" ? payload.code : undefined;
 }
 
 function errorMessage(error: unknown, t: (key: string) => string): string { return error instanceof Error ? error.message : t("errors.historyUnavailable"); }

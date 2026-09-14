@@ -61,7 +61,7 @@ import {
   serveWorkspaceSessions,
 } from "./workspace/routes.js";
 import { loadStoredProjects } from "./workspace/project-store.js";
-import { serveGitCommit, serveGitFilePatch, serveGitLog, serveGitRefs } from "./git/routes.js";
+import { serveGitCommit, serveGitFilePatch, serveGitLog, serveGitRefs, serveGitStructuralDiff } from "./git/routes.js";
 import {
   abortArtifactImport,
   allowArtifactRead,
@@ -280,6 +280,7 @@ async function route(
       inspectorEnabled: activeSourcePath(state.sourceCatalog, state.activeSources, "inspector") !== undefined,
       gitEnabled: state.workspace?.gitRoot !== undefined,
       sessionPerformanceEnabled: options.sessionPerformanceProvider !== undefined,
+      structuralDiffEnabled: options.structuralDiffProvider !== undefined,
       workspaceWorkbenchEnabled: state.workspace?.inspectorReport !== undefined,
       workspaceDiscoveryEnabled: options.workspaceSessionProvider !== undefined,
       workspaceConnected: state.workspace !== undefined,
@@ -395,6 +396,11 @@ async function route(
   }
   if (request.method === "GET" && url.pathname === "/api/git/log") {
     await serveGitLog(response, state, url);
+    return;
+  }
+  const gitStructuralDiff = url.pathname.match(/^\/api\/git\/commits\/((?:[0-9a-f]{40}|[0-9a-f]{64}))\/structural-diff$/u);
+  if (request.method === "GET" && gitStructuralDiff !== null) {
+    await serveGitStructuralDiff(response, state, options, gitStructuralDiff[1]!, url.searchParams.get("path"));
     return;
   }
   const gitCommitPatch = url.pathname.match(/^\/api\/git\/commits\/((?:[0-9a-f]{40}|[0-9a-f]{64}))\/patch$/u);

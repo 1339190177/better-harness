@@ -2116,9 +2116,48 @@
 .git-changed-files button small,
 .git-changed-files button > code { color: var(--color-text-muted); font-size: var(--type-meta-size); }
 .git-changed-files button > code { font-family: var(--font-code); white-space: nowrap; }
-.git-file-diff { grid-column: 2; grid-row: 1 / -1; min-width: 0; min-height: 0; overflow: auto; background: var(--color-workspace); }
+.git-file-diff { grid-column: 2; grid-row: 1 / -1; min-width: 0; min-height: 0; overflow: auto; background: var(--color-workspace); display: flex; flex-direction: column; }
 .git-file-diff > .artifact-code-view,
 .git-file-diff .studio-diff-renderer { min-height: 100%; }
+.git-file-diff > .artifact-code-view,
+.git-file-diff > .structural-diff { flex: 1 1 auto; min-height: 0; }
+/* The reading switch travels with the pane it governs, so it stays reachable
+   while a long patch scrolls under it. */
+.git-diff-mode { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--color-border); background: var(--color-surface-subtle); }
+.git-diff-mode button { border: 1px solid transparent; border-radius: var(--radius-xs); padding: 1px var(--space-sm); color: var(--color-text-muted); background: transparent; font: inherit; }
+.git-diff-mode button:hover { color: var(--color-text); background: var(--color-surface-hover); }
+.git-diff-mode button[aria-pressed="true"] { border-color: var(--color-border-strong); color: var(--color-primary); background: var(--color-surface-selected); }
+.git-diff-mode button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+.git-diff-notice { margin: 0; padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); background: var(--color-warning-surface); }
+
+/*
+ * The structural reading. Each row keeps both revisions in their own column so
+ * the two sides stay aligned; a run the engine flagged borrows the success or
+ * danger role, which is the polarity the validation surfaces already use.
+ */
+.structural-diff { min-width: 0; }
+.structural-diff-summary { position: sticky; top: 0; display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); background: var(--color-surface-subtle); }
+.structural-diff-summary strong { color: var(--color-text); font-weight: 500; }
+/*
+ * One grid for the whole file, so both revisions share one set of column
+ * widths and stay aligned row for row. Rows are `display: contents` because a
+ * per-row grid would size its columns from its own content and the divider
+ * would jog between rows.
+ *
+ * Neither side wraps: a wrapped line destroys the left/right correspondence, and
+ * wrapping mid-token is what makes a structural diff unreadable. A long line
+ * scrolls inside its own side instead, so both revisions stay on screen.
+ */
+.structural-diff-rows { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); font-family: var(--font-code); font-size: var(--type-code-size); line-height: var(--type-code-line); }
+.structural-diff-row { display: contents; }
+.structural-diff-side { display: flex; gap: var(--space-sm); min-width: 0; overflow-x: auto; padding-right: var(--space-sm); }
+.structural-diff-side[data-side="lhs"] { border-right: 1px solid var(--color-border); }
+.structural-diff-side[data-absent="true"] { background: var(--color-surface-subtle); }
+.structural-diff-number { flex: none; min-width: 5ch; padding: 0 var(--space-xs); color: var(--color-text-subtle); text-align: right; user-select: none; }
+.structural-diff-code { min-width: 0; white-space: pre; }
+.structural-diff-run { border-radius: var(--radius-xs); padding: 0 1px; }
+.structural-diff-side[data-side="rhs"] .structural-diff-run { color: var(--color-success); background: var(--color-success-surface); }
+.structural-diff-side[data-side="lhs"] .structural-diff-run { color: var(--color-danger); background: var(--color-danger-surface); }
 .git-loading,
 .git-detail-empty,
 .git-diff-empty,
@@ -2174,6 +2213,8 @@
   .git-commit-message { grid-row: 1; max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--color-border); }
   .git-changed-files { grid-row: 2; border-right: 0; border-bottom: 1px solid var(--color-border); }
   .git-file-diff { grid-column: 1; grid-row: 3; min-height: 260px; }
+  .structural-diff-rows { grid-template-columns: minmax(0, 1fr); }
+  .structural-diff-side[data-side="lhs"] { border-right: 0; border-bottom: 1px dashed var(--color-border); }
   .artifact-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--workbench-bar-height) minmax(0, 1fr); }
   .artifact-workspace > .studio-pane-sash { display: none; }
   .artifact-narrow-tabs { display: flex; border-bottom: 1px solid var(--color-border); background: var(--color-surface-subtle); }

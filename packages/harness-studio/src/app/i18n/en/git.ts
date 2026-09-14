@@ -87,6 +87,18 @@ export const git = {
     noTextPatch: "Git reported no text patch for this file.",
     patchLabel: "Git patch: {{path}}",
   },
+  structural: {
+    modeAria: "How this change is read",
+    textual: "Textual",
+    structural: "Structural",
+    switchTitle: "Read this change structurally",
+    loading: "Computing the structural diff…",
+    summary: "{{changed}} of {{total}} lines changed",
+    noChanges: "The engine found no structural change in this file.",
+    unavailable: "Structural diff is unavailable in this environment. Showing the textual patch.",
+    failed: "The structural diff could not be computed.",
+    label: "Structural diff: {{path}}",
+  },
   errors: {
     refsUnavailable: "Git refs are unavailable.",
     historyUnavailable: "Git history is unavailable.",

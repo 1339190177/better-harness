@@ -6,6 +6,7 @@ import { message, isMessage } from './protocol.mjs';
 import {
   startHarnessStudioServer, defaultAppDir, discoverAcpAgentProfiles,
   createRustEvidenceHost, createRustEvidenceWorkspaceSessionProvider,
+  createRustDiffHost,
   createBundledAgentCustomizationCollector,
 } from '@qoder-ai/harness-studio';
 
@@ -49,7 +50,7 @@ port.on('message', async (data) => {
     if (isMessage(data, 'start') && !starting && !stopping) {
       // `boxExecExecutable` is optional: builds without BoxLite omit it, and
       // Studio then offers no microVM placement. A wrong type is still a fault.
-      if (typeof data.token !== 'string' || data.token.length !== 64 || typeof data.dataDirectory !== 'string' || (data.esbuildExecutable !== undefined && (typeof data.esbuildExecutable !== 'string' || data.esbuildTransport !== 'nsxpc' || process.platform !== 'darwin')) || (data.boxExecExecutable !== undefined && typeof data.boxExecExecutable !== 'string') || typeof data.oxcExecutable !== 'string' || typeof data.acpHostExecutable !== 'string' || typeof data.evidenceHostExecutable !== 'string' || !['stdio', 'nsxpc'].includes(data.oxcTransport) || !['stdio', 'nsxpc'].includes(data.acpHostTransport) || !['stdio', 'nsxpc'].includes(data.evidenceHostTransport)) {
+      if (typeof data.token !== 'string' || data.token.length !== 64 || typeof data.dataDirectory !== 'string' || (data.esbuildExecutable !== undefined && (typeof data.esbuildExecutable !== 'string' || data.esbuildTransport !== 'nsxpc' || process.platform !== 'darwin')) || (data.boxExecExecutable !== undefined && typeof data.boxExecExecutable !== 'string') || typeof data.oxcExecutable !== 'string' || typeof data.acpHostExecutable !== 'string' || typeof data.evidenceHostExecutable !== 'string' || typeof data.diffHostExecutable !== 'string' || !['stdio', 'nsxpc'].includes(data.oxcTransport) || !['stdio', 'nsxpc'].includes(data.acpHostTransport) || !['stdio', 'nsxpc'].includes(data.evidenceHostTransport) || !['stdio', 'nsxpc'].includes(data.diffHostTransport)) {
         throw new Error('Invalid Studio startup contract');
       }
       starting = true;
@@ -97,7 +98,7 @@ port.on('message', async (data) => {
       const nativeLibraries = process.report.getReport().sharedObjects;
       if (nativeLibraries.some((library) => /oxc[_-](parser|transform)/i.test(library))) throw new Error('OXC NAPI unexpectedly loaded in Studio');
       // Local diagnostic receipt, without source text or credentials.
-      console.info(JSON.stringify({ kind: 'better-harness-desktop.oxc-proof', rust: true, transport: data.oxcTransport, bridgePid, oxcPid, studioPid: process.pid, oxcNativeLoaded: false, esbuildPid, esbuildBridgePid, esbuildTransport: artifactLinkerFactory ? data.esbuildTransport : 'wasm', esbuildVersion: artifactLinkerFactory ? GO_ESBUILD_LINKER_VERSION : undefined, acpTransport: data.acpHostTransport, acpRuntime: data.acpHostTransport === 'nsxpc' ? 'acp-v1-nsxpc' : 'acp-v1-rust', evidenceTransport: data.evidenceHostTransport, evidenceRuntime: data.evidenceHostTransport === 'nsxpc' ? 'evidence-v1-nsxpc' : 'evidence-v1-rust' }));
+      console.info(JSON.stringify({ kind: 'better-harness-desktop.oxc-proof', rust: true, transport: data.oxcTransport, bridgePid, oxcPid, studioPid: process.pid, oxcNativeLoaded: false, esbuildPid, esbuildBridgePid, esbuildTransport: artifactLinkerFactory ? data.esbuildTransport : 'wasm', esbuildVersion: artifactLinkerFactory ? GO_ESBUILD_LINKER_VERSION : undefined, acpTransport: data.acpHostTransport, acpRuntime: data.acpHostTransport === 'nsxpc' ? 'acp-v1-nsxpc' : 'acp-v1-rust', evidenceTransport: data.evidenceHostTransport, evidenceRuntime: data.evidenceHostTransport === 'nsxpc' ? 'evidence-v1-nsxpc' : 'evidence-v1-rust', diffTransport: data.diffHostTransport, diffRuntime: data.diffHostTransport === 'nsxpc' ? 'diff-v1-nsxpc' : 'diff-v1-rust' }));
       const acpAgents = await discoverAcpAgentProfiles();
       const evidenceHost = createRustEvidenceHost({
         executable: data.evidenceHostExecutable,
@@ -105,11 +106,21 @@ port.on('message', async (data) => {
       });
       compilers.add({ close: () => evidenceHost.close() });
       await evidenceHost.describe();
+      // The commit view's structural reading. Describing it up front proves the
+      // service hop once, so a broken host is a startup error rather than a
+      // surprise the first time a reader opens a commit.
+      const diffHost = createRustDiffHost({
+        executable: data.diffHostExecutable,
+        transport: data.diffHostTransport,
+      });
+      compilers.add({ close: () => diffHost.close() });
+      await diffHost.describe();
       server = await startHarnessStudioServer({
         oxcCompilerFactory,
         artifactLinkerFactory,
         acpHostExecutable: data.acpHostExecutable,
         acpHostTransport: data.acpHostTransport,
+        structuralDiffProvider: diffHost,
         ...(data.boxExecExecutable === undefined ? {} : { boxExecExecutable: data.boxExecExecutable }),
         acpAgents,
         harnessMode: 'workspace-default',

@@ -1,9 +1,11 @@
 import { GitCommitDetail } from "../../contracts/git-history.js";
 import { GitHistoryError, readGitCommitAtRoot, readGitFilePatchAtRoot, readGitLog, readGitRefsAtRoot } from "../git-history.js";
+import { readStructuralDiff } from "../structural-diff.js";
+import { RustDiffHostError } from "../workspace/rust-diff-provider.js";
 import { open } from "node:fs/promises";
 import { ServerResponse } from "node:http";
 import { respondJson } from "../http-utils.js";
-import { HarnessStudioState, StudioWorkspace } from "../studio-types.js";
+import { HarnessStudioServerOptions, HarnessStudioState, StudioWorkspace } from "../studio-types.js";
 
 type GitStudioWorkspace = StudioWorkspace & { gitRoot: string };
 
@@ -63,6 +65,35 @@ export async function serveGitFilePatch(
     respondGitError(response, error);
   }
 }
+export async function serveGitStructuralDiff(
+  response: ServerResponse,
+  state: HarnessStudioState,
+  options: HarnessStudioServerOptions,
+  sha: string,
+  path: string | null,
+): Promise<void> {
+  try {
+    if (path === null) throw new GitHistoryError("File path is required.", 400, "INVALID_PATH");
+    const provider = options.structuralDiffProvider;
+    // The browser CLI has no staged host. Saying so beats returning an empty
+    // diff, which a reader would have to mistake for "nothing changed".
+    if (provider === undefined) {
+      throw new GitHistoryError("Structural diff is unavailable in this environment.", 503, "DIFF_HOST_UNAVAILABLE");
+    }
+    const workspace = gitWorkspace(state);
+    const detail = await cachedGitCommit(workspace, sha);
+    respondJson(response, 200, await readStructuralDiff({
+      repoRoot: workspace.gitRoot,
+      sha,
+      path,
+      detail,
+      provider,
+      ...(workspace.structuralDiffCache === undefined ? {} : { cache: workspace.structuralDiffCache }),
+    }), { "Cache-Control": "no-store" });
+  } catch (error) {
+    respondGitError(response, error);
+  }
+}
 async function cachedGitCommit(workspace: GitStudioWorkspace, sha: string): Promise<GitCommitDetail> {
   const cached = workspace.gitCommitCache?.get(sha);
   if (cached !== undefined) return cached;
@@ -77,9 +108,29 @@ async function cachedGitCommit(workspace: GitStudioWorkspace, sha: string): Prom
   return detail;
 }
 function respondGitError(response: ServerResponse, error: unknown): void {
+  if (error instanceof RustDiffHostError) {
+    respondJson(response, RUST_DIFF_STATUS[error.failure], { error: error.message, code: RUST_DIFF_CODE[error.failure] });
+    return;
+  }
   if (error instanceof GitHistoryError) {
     respondJson(response, error.status, { error: error.message, code: error.code });
     return;
   }
   respondJson(response, 500, { error: "Git history is unavailable.", code: "GIT_HISTORY_FAILED" });
 }
+
+/** A refused or failed structural diff keeps its own status and code. */
+const RUST_DIFF_STATUS: Record<RustDiffHostError["failure"], number> = {
+  unavailable: 503,
+  timeout: 504,
+  limit: 413,
+  protocol: 502,
+  call: 502,
+};
+const RUST_DIFF_CODE: Record<RustDiffHostError["failure"], string> = {
+  unavailable: "DIFF_HOST_UNAVAILABLE",
+  timeout: "STRUCTURAL_DIFF_TIMEOUT",
+  limit: "STRUCTURAL_DIFF_TOO_LARGE",
+  protocol: "DIFF_HOST_TRANSPORT",
+  call: "STRUCTURAL_DIFF_FAILED",
+};

@@ -60,3 +60,22 @@ export {
   type RustEvidenceHost,
   type RustEvidenceHostOptions,
 } from "./server/workspace/rust-evidence-provider.js";
+export {
+  createRustDiffHost,
+  DIFF_HOST_PROTOCOL_VERSION,
+  RustDiffHostError,
+  type RustDiffFailure,
+  type RustDiffHost,
+  type RustDiffHostOptions,
+} from "./server/workspace/rust-diff-provider.js";
+export {
+  isStructuralDiff,
+  isStructuralDiffResult,
+  type StructuralDiff,
+  type StructuralDiffLine,
+  type StructuralDiffProvider,
+  type StructuralDiffResult,
+  type StructuralDiffSegment,
+  type StructuralDiffSide,
+  type StructuralDiffStatus,
+} from "./contracts/structural-diff.js";

@@ -165,6 +165,13 @@ else {
       evidenceHostExecutable: process.platform === 'darwin'
         ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Evidence.app/Contents', import.meta.url)), 'MacOS', 'harness-evidence-client')
         : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', process.platform === 'win32' ? 'harness-evidence-host.exe' : 'harness-evidence-host'),
+      // The structural-diff engine is the heaviest native call, so macOS reaches
+      // it through its own launchd-managed service and Windows/Linux spawn the
+      // stdio driver directly, the same split ACP and Evidence already use.
+      diffHostTransport: process.platform === 'darwin' ? 'nsxpc' : 'stdio',
+      diffHostExecutable: process.platform === 'darwin'
+        ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Diff.app/Contents', import.meta.url)), 'MacOS', 'harness-diff-client')
+        : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', process.platform === 'win32' ? 'harness-diff-host.exe' : 'harness-diff-host'),
       // The microVM shim is built only where BoxLite can be compiled, so its
       // absence is normal rather than an error: Studio then hides the placement
       // instead of offering a run it cannot start.

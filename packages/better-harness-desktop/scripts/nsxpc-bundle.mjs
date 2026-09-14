@@ -5,6 +5,7 @@ export const boxServiceId = 'com.qoder.harness-studio.box';
 export const serviceId = 'com.qoder.harness-studio.oxc';
 export const acpServiceId = 'com.qoder.harness-studio.acp';
 export const evidenceServiceId = 'com.qoder.harness-studio.evidence';
+export const diffServiceId = 'com.qoder.harness-studio.diff';
 export const esbuildServiceId = 'com.qoder.harness-studio.esbuild';
 const plist = (body) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -138,6 +139,37 @@ export async function installEvidenceXpc(appPath, binaryDirectory, { development
   if (development) await writeFile(join(contents, 'Info.plist'), plist(`
 <key>CFBundleIdentifier</key><string>com.qoder.harness-studio.evidence-development</string>
 <key>CFBundleExecutable</key><string>harness-evidence-client</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSUIElement</key><true/>`));
+}
+
+/**
+ * Structural-diff NSXPC service, same shape as Evidence: the service spawns one
+ * unmodified `harness-diff-host` driver per connection and only tunnels frames,
+ * so the engine keeps its own process. That isolation matters more here than
+ * elsewhere, because parsing an unfamiliar file is the most likely thing in
+ * this app to be slow or to run out of memory.
+ */
+export async function installDiffXpc(appPath, binaryDirectory, { development = false } = {}) {
+  const contents = join(appPath, 'Contents');
+  const service = join(contents, 'XPCServices', `${diffServiceId}.xpc`, 'Contents');
+  await mkdir(join(contents, 'MacOS'), { recursive: true });
+  await mkdir(join(service, 'MacOS'), { recursive: true });
+  await mkdir(join(service, 'Resources'), { recursive: true });
+  await cp(join(binaryDirectory, 'harness-diff-service.NOTICES.txt'), join(service, 'Resources', 'THIRD-PARTY-NOTICES.txt'));
+  await cp(join(binaryDirectory, 'harness-diff-client'), join(contents, 'MacOS', 'harness-diff-client'));
+  await cp(join(binaryDirectory, 'harness-diff-xpc'), join(service, 'MacOS', 'harness-diff-xpc'));
+  await cp(join(binaryDirectory, 'harness-diff-host'), join(service, 'MacOS', 'harness-diff-host'));
+  await writeFile(join(service, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${diffServiceId}</string>
+<key>CFBundleExecutable</key><string>harness-diff-xpc</string>
+<key>CFBundlePackageType</key><string>XPC!</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>XPCService</key><dict><key>ServiceType</key><string>Application</string></dict>`));
+  if (development) await writeFile(join(contents, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${diffServiceId}-development</string>
+<key>CFBundleExecutable</key><string>harness-diff-client</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSUIElement</key><true/>`));

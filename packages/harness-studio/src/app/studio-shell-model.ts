@@ -52,6 +52,8 @@ export type StudioSessionCompareScope = "cross-agent" | "single-agent" | "insuff
 
 export interface StudioConfig {
   sessionPerformanceEnabled?: boolean;
+  /** Whether a native structural-diff host is staged, so the commit view can offer both readings. */
+  structuralDiffEnabled?: boolean;
   runEnabled: boolean;
   acpEnabled: boolean;
   acpAgentLabel?: string;

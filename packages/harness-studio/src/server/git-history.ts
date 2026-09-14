@@ -251,6 +251,29 @@ export async function readGitFilePatch(repoPath: string, sha: string, path: stri
   return await readGitFilePatchAtRoot(repoRoot, sha, path);
 }
 
+/**
+ * One file's text at one revision, bounded by `maxBuffer`.
+ *
+ * Absent at that revision yields `undefined`, which is how a structural diff
+ * expresses an added or deleted side. Exceeding the bound is not absence and is
+ * reported as such, because a caller must not read an oversized file as empty.
+ */
+export async function readGitRevisionFile(
+  repoRoot: string,
+  revision: string,
+  path: string,
+  maxBuffer: number,
+): Promise<string | undefined> {
+  try {
+    return await runGit(repoRoot, ["show", `${revision}:${path}`], maxBuffer);
+  } catch (error) {
+    if (error instanceof GitHistoryError && error.code === "OUTPUT_LIMIT") {
+      throw new GitHistoryError("This file is too large for a structural diff.", 413, "STRUCTURAL_DIFF_TOO_LARGE");
+    }
+    return undefined;
+  }
+}
+
 export async function readGitFilePatchAtRoot(
   repoRoot: string,
   sha: string,

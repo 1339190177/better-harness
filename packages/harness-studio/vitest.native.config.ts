@@ -5,6 +5,7 @@ export default defineConfig({ test: {
     "test/agent-react/rust-oxc.native.ts",
     "test/agent-react/go-esbuild.native.ts",
     "test/acp-rust.native.ts",
+    "test/structural-diff.native.ts",
   ],
   pool: "forks", testTimeout: 30_000,
 } });

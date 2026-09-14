@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir } from 'node:fs/promises';
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc } from './nsxpc-bundle.mjs';
+import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc } from './nsxpc-bundle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const test = process.argv.includes('--test');
@@ -34,6 +34,9 @@ function hasProtoc() {
 cargo('oxc-service');
 cargo('acp-host');
 cargo('evidence-host');
+// Building the diff service also builds the vendored `difftastic-core` engine
+// it links; the engine has no build step of its own.
+cargo('diff-service');
 // The microVM shim is optional. Without protoc the rest of the build still
 // succeeds, Studio is given no `boxExecExecutable`, and the Debugger hides the
 // microVM placement rather than offering one it cannot honour.
@@ -46,6 +49,7 @@ if (!test) {
   // NSXPC bundle below. Staging it also keeps one path rule across platforms.
   await stage('harness-acp-host');
   await stage('harness-evidence-host');
+  await stage('harness-diff-host');
   // Studio spawns the shim directly in an Agent's place, so it is a plain
   // staged executable. The driver beside it is the off-macOS fallback; on macOS
   // the shim prefers the bundled bridge staged below, which reaches the one
@@ -58,10 +62,20 @@ if (!test) {
 
 if (!test && process.platform === 'darwin') {
   const binaries = join(root, 'dist', 'rust', 'release');
+  // The engine is MIT-licensed third-party code vendored into this repository,
+  // so its notice ships in the service bundle that links it.
+  await writeFile(
+    join(binaries, 'harness-diff-service.NOTICES.txt'),
+    (await Promise.all([
+      readFile(join(root, 'rust', 'difftastic-core', 'NOTICE.md'), 'utf8'),
+      readFile(join(root, 'rust', 'difftastic-core', 'LICENSE'), 'utf8'),
+    ])).join('\n'),
+  );
   for (const binary of [
     'harness-oxc-client', 'harness-oxc-xpc',
     'harness-acp-client', 'harness-acp-xpc',
     'harness-evidence-client', 'harness-evidence-xpc',
+    'harness-diff-client', 'harness-diff-xpc',
   ]) {
     await cp(join(binaries, binary), join(root, 'dist', 'native', binary));
   }
@@ -74,6 +88,9 @@ if (!test && process.platform === 'darwin') {
   const evidenceApp = join(root, 'dist', 'native', 'Harness Evidence.app');
   await installEvidenceXpc(evidenceApp, binaries, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', evidenceApp], { stdio: 'inherit' });
+  const diffApp = join(root, 'dist', 'native', 'Harness Diff.app');
+  await installDiffXpc(diffApp, binaries, { development: true });
+  execFileSync('codesign', ['--force', '--sign', '-', '--deep', diffApp], { stdio: 'inherit' });
   if (box) {
     for (const binary of ['harness-box-client', 'harness-box-xpc']) {
       await cp(join(binaries, binary), join(root, 'dist', 'native', binary));

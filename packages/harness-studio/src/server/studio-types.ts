@@ -7,6 +7,7 @@ import type { OxcCompilerFactory } from "../agent-react/host/index.js";
 import { DebuggerSession } from "../contracts/debugger-session.js";
 import { CheckpointSourcePreview, ExperimentLockReceipt } from "../contracts/experiment-setup.js";
 import { GitCommitDetail, GitRefsSnapshot } from "../contracts/git-history.js";
+import { StructuralDiff, StructuralDiffProvider } from "../contracts/structural-diff.js";
 import { UserInputTraceV1 } from "../contracts/input-trace.js";
 import { StudioProjectDescriptor, StudioProjectKind } from "../contracts/studio-project.js";
 import { ArtifactCompileLimits } from "./artifacts/registry/artifact-compile-runtime.js";
@@ -149,6 +150,13 @@ export interface HarnessStudioServerOptions {
    */
   boxExecExecutable?: string;
   /**
+   * Native structural-diff host. When present, the commit view can offer a
+   * structural reading of a changed file; when absent, Studio serves the
+   * textual diff only and the browser never sees a control it cannot honour.
+   * The desktop shell owns the path, like every other staged binary.
+   */
+  structuralDiffProvider?: StructuralDiffProvider;
+  /**
    * Which ACP host `acpHostExecutable` is. `"nsxpc"` means it is the macOS
    * `harness-acp-client` bridge to a launchd-managed service; `"stdio"` (default)
    * means the `harness-acp-host` driver spoken to directly. Set by the desktop
@@ -281,6 +289,8 @@ export interface StudioWorkspace {
   gitRefs?: GitRefsSnapshot;
   /** Small immutable-detail cache used by commit and patch routes. */
   gitCommitCache?: Map<string, GitCommitDetail>;
+  /** Structural readings of commit files, keyed by commit and path. */
+  structuralDiffCache?: Map<string, StructuralDiff>;
   ownedDirectory?: string;
 }
 export interface StoredWorkspaceSession extends StudioWorkspaceSession {

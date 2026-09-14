@@ -89,6 +89,18 @@ export const git: typeof enGit = {
     noTextPatch: "Git 未报告此文件的文本补丁。",
     patchLabel: "Git 补丁：{{path}}",
   },
+  structural: {
+    modeAria: "变更的阅读方式",
+    textual: "文本",
+    structural: "结构化",
+    switchTitle: "以结构化方式阅读此变更",
+    loading: "正在计算结构化差异…",
+    summary: "{{total}} 行中变更 {{changed}} 行",
+    noChanges: "引擎未在此文件中发现结构化变更。",
+    unavailable: "当前环境不支持结构化差异，改为显示文本补丁。",
+    failed: "无法计算结构化差异。",
+    label: "结构化差异：{{path}}",
+  },
   errors: {
     refsUnavailable: "Git 引用不可用。",
     historyUnavailable: "Git 历史不可用。",

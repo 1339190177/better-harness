@@ -3,6 +3,7 @@ import { CUSTOMIZATION_USAGE_KIND, type CustomizationUsageV1 } from "../../contr
 import { projectUserInputTrace } from "../../contracts/input-trace.js";
 import { IntentCorrelationAnalysisV1, IntentCorrelationContractError, validateIntentCorrelationAnalysis } from "../../contracts/intent-correlation.js";
 import { MAX_STUDIO_PROJECTS, STUDIO_PROJECT_CATALOG_KIND, type StudioProjectDescriptor } from "../../contracts/studio-project.js";
+import type { StructuralDiff } from "../../contracts/structural-diff.js";
 import { validateStudioCustomizationAnalysis } from "../customization-collector.js";
 import { sessionFromRetainedRun } from "../debugger-session-transform.js";
 import { resolveGitRepositoryRoot } from "../git-history.js";
@@ -175,7 +176,11 @@ async function discoverWorkspace(options: HarnessStudioServerOptions, workspaceP
     ...(customizationUsage === undefined ? {} : { customizationUsage }),
     localDirectory: workspacePath,
     artifactObservations,
-    ...(gitRoot === undefined ? {} : { gitRoot, gitCommitCache: new Map<string, GitCommitDetail>() }),
+    ...(gitRoot === undefined ? {} : {
+      gitRoot,
+      gitCommitCache: new Map<string, GitCommitDetail>(),
+      structuralDiffCache: new Map<string, StructuralDiff>(),
+    }),
   };
 }
 
