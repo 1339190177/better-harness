@@ -2357,3 +2357,26 @@
 .session-compare-usage > div { display: flex; justify-content: space-between; gap: var(--space-sm); }
 
 .session-compare-calls summary .session-compare-call-preview { display: block; margin-left: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-code); }
+
+/* ── Architecture Impact Pane ─────────────────────────────────────────── */
+.arch-pane { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; background: var(--color-panel); }
+.arch-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
+.arch-header strong { color: var(--color-text); }
+.arch-header span { color: var(--color-text-muted); font-size: var(--type-meta-size); }
+.arch-toolbar { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.arch-summary { flex: 1; color: var(--color-text-muted); font-size: var(--type-meta-size); }
+.arch-btn { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
+.arch-btn:hover { background: var(--color-surface-hover); }
+.arch-canvas { overflow: auto; padding: var(--space-md); }
+.arch-svg { display: block; min-width: 400px; }
+.arch-loading { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-lg); color: var(--color-text-muted); }
+.arch-error { padding: var(--space-lg); color: var(--color-danger); }
+.arch-box-default { fill: var(--color-surface); stroke: var(--color-primary); stroke-width: 2; }
+.arch-box-observed { fill: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)); stroke: var(--color-primary); stroke-width: 2; }
+.arch-box-changed { fill: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface)); stroke: var(--color-danger); stroke-width: 3; }
+.arch-label { fill: var(--color-text); font-size: var(--type-meta-size); font-family: var(--font-ui); }
+.arch-kind { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); }
+.arch-edge-declared { stroke: var(--color-border); stroke-width: 1.5; }
+.arch-edge-observed { stroke: var(--color-warning); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.arch-toggle { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
+.arch-toggle:hover { background: var(--color-surface-hover); }

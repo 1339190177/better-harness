@@ -329,6 +329,19 @@ export async function collectReviewTriggerFindings(options = {}) {
         config,
       }));
     }
+
+    // Architecture-impact: offline, deterministic, cross-platform
+    try {
+      const { collectArchitectureFindings } = await import("./architecture-impact.mjs");
+      const archFindings = await collectArchitectureFindings({
+        cwd,
+        changedFiles: changedFiles.map((f) => ({ path: changedFilePath(f), added: f.added, deleted: f.deleted })),
+        config,
+      });
+      findings.push(...archFindings.map((f) => withFingerprint(f)));
+    } catch (error) {
+      warnings.push(`architecture-impact scan failed: ${error.message}`);
+    }
   } catch {
     throw new ReviewTriggerCliError(
       "runtime-failure",

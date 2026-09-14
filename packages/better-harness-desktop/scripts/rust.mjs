@@ -37,6 +37,7 @@ cargo('evidence-host');
 // Building the diff service also builds the vendored `difftastic-core` engine
 // it links; the engine has no build step of its own.
 cargo('diff-service');
+cargo('arch-service');
 // The microVM shim is optional. Without protoc the rest of the build still
 // succeeds, Studio is given no `boxExecExecutable`, and the Debugger hides the
 // microVM placement rather than offering one it cannot honour.
@@ -50,6 +51,7 @@ if (!test) {
   await stage('harness-acp-host');
   await stage('harness-evidence-host');
   await stage('harness-diff-host');
+  await stage('harness-arch-host');
   // Studio spawns the shim directly in an Agent's place, so it is a plain
   // staged executable. The driver beside it is the off-macOS fallback; on macOS
   // the shim prefers the bundled bridge staged below, which reaches the one
@@ -78,6 +80,7 @@ if (!test && process.platform === 'darwin') {
     'harness-acp-client', 'harness-acp-xpc',
     'harness-evidence-client', 'harness-evidence-xpc',
     'harness-diff-client', 'harness-diff-xpc',
+    'harness-arch-client', 'harness-arch-xpc',
   ]) {
     await cp(join(binaries, binary), join(native, binary));
   }
@@ -95,6 +98,9 @@ if (!test && process.platform === 'darwin') {
   // directory, beside the driver it ships inside the service bundle.
   await installDiffXpc(diffApp, native, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', diffApp], { stdio: 'inherit' });
+  const archApp = join(root, 'dist', 'native', 'Harness Arch.app');
+  await installDiffXpc(archApp, native, { development: true });
+  execFileSync('codesign', ['--force', '--sign', '-', '--deep', archApp], { stdio: 'inherit' });
   if (box) {
     for (const binary of ['harness-box-client', 'harness-box-xpc']) {
       await cp(join(binaries, binary), join(root, 'dist', 'native', binary));

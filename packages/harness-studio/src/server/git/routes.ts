@@ -1,6 +1,7 @@
 import { GitCommitDetail } from "../../contracts/git-history.js";
 import { GitHistoryError, readGitCommitAtRoot, readGitFilePatchAtRoot, readGitLog, readGitRefsAtRoot } from "../git-history.js";
 import { readStructuralDiff } from "../structural-diff.js";
+import { readCommitArchitectureImpact } from "../architecture-impact.js";
 import { RustDiffHostError } from "../workspace/rust-diff-provider.js";
 import { open } from "node:fs/promises";
 import { ServerResponse } from "node:http";
@@ -89,6 +90,42 @@ export async function serveGitStructuralDiff(
       detail,
       provider,
       ...(workspace.structuralDiffCache === undefined ? {} : { cache: workspace.structuralDiffCache }),
+    }), { "Cache-Control": "no-store" });
+  } catch (error) {
+    respondGitError(response, error);
+  }
+}
+export async function serveGitArchitectureImpact(
+  response: ServerResponse,
+  state: HarnessStudioState,
+  options: HarnessStudioServerOptions,
+  sha: string,
+): Promise<void> {
+  const provider = options.architectureImpactProvider;
+  if (provider === undefined) {
+    respondJson(response, 200, {
+      kind: "CommitArchitectureImpactV1",
+      sha,
+      status: "unavailable",
+      elements: [],
+      relationships: [],
+      observedEdges: [],
+      codeHitIds: [],
+      changedHitIds: [],
+      overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
+      dsl: "",
+      error: "Architecture impact host is unavailable in this environment.",
+    });
+    return;
+  }
+  try {
+    const workspace = gitWorkspace(state);
+    const detail = await cachedGitCommit(workspace, sha);
+    respondJson(response, 200, await readCommitArchitectureImpact({
+      repoRoot: workspace.gitRoot,
+      sha,
+      detail,
+      provider,
     }), { "Cache-Control": "no-store" });
   } catch (error) {
     respondGitError(response, error);

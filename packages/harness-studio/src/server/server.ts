@@ -61,7 +61,7 @@ import {
   serveWorkspaceSessions,
 } from "./workspace/routes.js";
 import { loadStoredProjects } from "./workspace/project-store.js";
-import { serveGitCommit, serveGitFilePatch, serveGitLog, serveGitRefs, serveGitStructuralDiff } from "./git/routes.js";
+import { serveGitCommit, serveGitFilePatch, serveGitLog, serveGitRefs, serveGitStructuralDiff, serveGitArchitectureImpact } from "./git/routes.js";
 import {
   abortArtifactImport,
   allowArtifactRead,
@@ -406,6 +406,11 @@ async function route(
   const gitCommitPatch = url.pathname.match(/^\/api\/git\/commits\/((?:[0-9a-f]{40}|[0-9a-f]{64}))\/patch$/u);
   if (request.method === "GET" && gitCommitPatch !== null) {
     await serveGitFilePatch(response, state, gitCommitPatch[1]!, url.searchParams.get("path"));
+    return;
+  }
+  const gitArchImpact = url.pathname.match(/^\/api\/git\/commits\/((?:[0-9a-f]{40}|[0-9a-f]{64}))\/architecture$/u);
+  if (request.method === "GET" && gitArchImpact !== null) {
+    await serveGitArchitectureImpact(response, state, options, gitArchImpact[1]!);
     return;
   }
   const gitCommit = url.pathname.match(/^\/api\/git\/commits\/((?:[0-9a-f]{40}|[0-9a-f]{64}))$/u);
