@@ -4,7 +4,13 @@ References: [Architecture](docs/ARCHITECTURE.md) ·
 [Agent Work Loop](models/agent-work-loop.md) ·
 [Loop Engineering](references/loop-engineering/README.md) ·
 [Host Adapter Matrix](docs/adapters/README.md) ·
-[Discussion #76](https://github.com/QoderAI/better-harness/discussions/76)
+[Discussion #76](https://github.com/QoderAI/better-harness/discussions/76) ·
+[2026 产品规划](roadmap-2026.md)
+
+[roadmap-2026.md](roadmap-2026.md) is the Chinese product plan transcribed from
+the 2026-09-11 planning deck. It is organized by user scenario, capability
+domain, and delivery stage; this document is organized by the evidence chain
+above. Read whichever matches the question you are asking.
 
 ## Product Position
 
