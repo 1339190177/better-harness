@@ -84,6 +84,10 @@ export function ArchitectureImpactView({ sha, label }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   /** `null` means "fit the pane": the reading a reader wants before any zooming. */
   const [view, setView] = useState<View | null>(null);
+  /** Set while a generated model is being saved as the declared one. */
+  const [saving, setSaving] = useState(false);
+  /** The last save outcome, shown beside the badge; cleared when the commit changes. */
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -98,6 +102,7 @@ export function ArchitectureImpactView({ sha, label }: Props) {
     setError(null);
     setSelected(null);
     setView(null);
+    setSaveNote(null);
     fetch(`/api/git/commits/${sha}/architecture`)
       .then((r) => r.json())
       .then((d: unknown) => {
@@ -249,9 +254,46 @@ export function ArchitectureImpactView({ sha, label }: Props) {
     setSelected(selected === id ? null : id);
   }
 
+  /**
+   * Save the generated model as the worktree's declared one, on the reader's
+   * action. A declared model is only replaced when the reader confirms it, so a
+   * routine save never clobbers an authored model.
+   */
+  async function saveModel(overwrite: boolean): Promise<void> {
+    setSaving(true);
+    setSaveNote(null);
+    try {
+      const response = await fetch("/api/git/architecture/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overwrite }),
+      });
+      if (response.ok) {
+        setSaveNote("Saved as the declared model. Reopen the commit to project onto it.");
+      } else {
+        const payload = await response.json().catch(() => ({}));
+        setSaveNote(typeof (payload as { error?: unknown }).error === "string" ? (payload as { error: string }).error : "The model could not be saved.");
+      }
+    } catch (cause) {
+      setSaveNote(cause instanceof Error ? cause.message : "The model could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="arch-pane" data-arch-sha={sha}>
-      <div className="arch-header"><strong>Architecture Impact</strong><span>{label === undefined ? undefined : `${label} · `}{data.elements.length} elements · {edges.length} edges</span></div>
+      <div className="arch-header">
+        <strong>Architecture Impact</strong>
+        <span>{label === undefined ? undefined : `${label} · `}{data.elements.length} elements · {edges.length} edges</span>
+        {data.modelSource?.origin === "generated" && (
+          // A generated model is a candidate, not an authored fact, so it is
+          // labelled as one wherever it is shown.
+          <span className="arch-badge" title="Derived from the project structure. Review and save to declare it.">
+            Auto-generated{data.modelSource.confidence === undefined ? "" : ` · ${data.modelSource.confidence} confidence`}
+          </span>
+        )}
+      </div>
       <div className="arch-toolbar">
         <span className="arch-summary">
           {data.overlay.changedSymbols > 0
@@ -274,7 +316,13 @@ export function ArchitectureImpactView({ sha, label }: Props) {
         </span>
         {data.dsl && <button type="button" className="arch-btn" onClick={exportDsl}>Export .dsl</button>}
         <button type="button" className="arch-btn" onClick={exportSvg}>Export .svg</button>
+        {data.modelSource?.origin === "generated" && (
+          <button type="button" className="arch-btn" onClick={() => { void saveModel(false); }} disabled={saving}>
+            {saving ? "Saving…" : "Save as declared model"}
+          </button>
+        )}
       </div>
+      {saveNote !== null && <div className="arch-save-note" role="status">{saveNote}</div>}
       <div
         className="arch-canvas"
         ref={canvasRef}

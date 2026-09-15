@@ -2,10 +2,13 @@ import { GitCommitDetail } from "../../contracts/git-history.js";
 import { GitHistoryError, readGitCommitAtRoot, readGitFilePatchAtRoot, readGitLog, readGitRefsAtRoot } from "../git-history.js";
 import { readStructuralDiff } from "../structural-diff.js";
 import { readCommitArchitectureImpact, unavailableImpact } from "../architecture-impact.js";
+import { resolveArchitectureModel, MODEL_PATH, BINDINGS_PATH } from "../architecture-model.js";
 import { RustDiffHostError } from "../workspace/rust-diff-provider.js";
-import { open } from "node:fs/promises";
-import { ServerResponse } from "node:http";
-import { respondJson } from "../http-utils.js";
+import { mkdir, open, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { readJsonBody, respondJson } from "../http-utils.js";
+import { listTrackedFilesAtRoot } from "../architecture-impact.js";
 import { HarnessStudioServerOptions, HarnessStudioState, StudioWorkspace } from "../studio-types.js";
 
 type GitStudioWorkspace = StudioWorkspace & { gitRoot: string };
@@ -131,6 +134,69 @@ export async function serveGitArchitectureImpact(
     respondJson(response, 200, unavailableImpact(sha, error instanceof Error ? error.message : "Architecture impact could not be read."));
   }
 }
+/**
+ * Persist the model a reading projects onto as the worktree's declared model.
+ *
+ * This is the one place the pane writes to the user's repository, and only on
+ * their action. The guard is deliberate: a model that is already declared is not
+ * overwritten unless the request says so, so a save on a generated fallback can
+ * never quietly clobber an authored model. The generator is deterministic, so
+ * what is written equals what the reading projected onto.
+ */
+export async function serveGitArchitectureModelSave(
+  request: IncomingMessage,
+  response: ServerResponse,
+  state: HarnessStudioState,
+): Promise<void> {
+  let workspace: GitStudioWorkspace;
+  try {
+    workspace = gitWorkspace(state);
+  } catch (error) {
+    respondGitError(response, error);
+    return;
+  }
+  let overwrite = false;
+  try {
+    const body = await readJsonBody(request);
+    overwrite = body !== null && typeof body === "object" && (body as { overwrite?: unknown }).overwrite === true;
+  } catch {
+    respondJson(response, 400, { error: "The save request body could not be read.", code: "ARCH_MODEL_BODY" });
+    return;
+  }
+
+  const trackedPaths = await listTrackedFilesAtRoot(workspace.gitRoot);
+  const resolved = await resolveArchitectureModel(workspace.gitRoot, trackedPaths);
+  if (resolved.kind !== "model") {
+    respondJson(response, 409, { error: `${resolved.path} cannot be read: ${resolved.reason}.`, code: "ARCH_MODEL_UNREADABLE" });
+    return;
+  }
+  // A model that is already declared is authored state; replacing it needs the
+  // reader to say so, so a routine save of a generated fallback cannot erase one.
+  if (resolved.origin === "declared" && !overwrite) {
+    respondJson(response, 409, { error: "A declared model already exists. Pass overwrite to replace it.", code: "ARCH_MODEL_DECLARED" });
+    return;
+  }
+
+  try {
+    const modelFile = join(workspace.gitRoot, MODEL_PATH);
+    const bindingsFile = join(workspace.gitRoot, BINDINGS_PATH);
+    await mkdir(dirname(modelFile), { recursive: true });
+    await writeFile(modelFile, `${JSON.stringify(resolved.model.modelJson, null, 2)}\n`, "utf8");
+    await writeFile(
+      bindingsFile,
+      `${JSON.stringify(resolved.model.bindings.map((binding) => ({ path_glob: binding.pathGlob, element_id: binding.elementId })), null, 2)}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    respondJson(response, 500, { error: error instanceof Error ? error.message : "The model could not be written.", code: "ARCH_MODEL_WRITE" });
+    return;
+  }
+  // The saved model is now the declared one; drop cached readings so the next
+  // request projects onto it rather than the fallback it replaced.
+  workspace.architectureImpactCache?.clear();
+  respondJson(response, 200, { saved: true, origin: "declared", path: MODEL_PATH }, { "Cache-Control": "no-store" });
+}
+
 async function cachedGitCommit(workspace: GitStudioWorkspace, sha: string): Promise<GitCommitDetail> {
   const cached = workspace.gitCommitCache?.get(sha);
   if (cached !== undefined) return cached;

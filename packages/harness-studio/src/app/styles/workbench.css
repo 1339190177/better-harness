@@ -2410,6 +2410,11 @@
 .arch-omitted { flex: 1 1 12ch; min-width: 0; overflow: hidden; color: var(--color-warning); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
 .arch-btn { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-btn:hover { background: var(--color-surface-hover); }
+.arch-btn:disabled { opacity: 0.6; cursor: default; }
+/* A generated model is a candidate: the badge marks it apart from an authored
+   one without competing with the element count for the header's flexible span. */
+.arch-header .arch-badge { flex: 0 0 auto; min-width: 0; overflow: visible; padding: 1px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-pill, 999px); background: var(--color-surface); color: var(--color-text-muted); font-size: var(--type-meta-size); white-space: nowrap; }
+.arch-save-note { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); font-size: var(--type-meta-size); }
 .arch-canvas { position: relative; overflow: hidden; padding: 0; cursor: grab; }
 .arch-canvas:active { cursor: grabbing; }
 /* The diagram is drawn into a measured viewport, so a docked pane can fit it

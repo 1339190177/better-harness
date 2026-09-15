@@ -21,8 +21,8 @@ import { basename, join, posix } from "node:path";
 import type { ArchitectureSourceBinding } from "../contracts/architecture-impact.js";
 import { generateArchitectureModel, type WorkspaceManifest } from "./architecture-model-generator.js";
 
-const MODEL_PATH = ".better-harness/architecture/model.json";
-const BINDINGS_PATH = ".better-harness/architecture/bindings.json";
+export const MODEL_PATH = ".better-harness/architecture/model.json";
+export const BINDINGS_PATH = ".better-harness/architecture/bindings.json";
 /** A declared model is configuration, not a dataset. */
 const MAX_MODEL_BYTES = 1024 * 1024;
 const DSL_PATTERN = /\.dsl$/u;

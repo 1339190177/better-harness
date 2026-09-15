@@ -151,10 +151,31 @@ a `declared` one on disk. A `GET` reading never writes to the user's repository.
   test/architecture-impact.test.ts` in `packages/harness-studio` — 2 files, 30
   tests, all passing.
 
-### Slices 2–4 — still open
+### Slice 2 — implemented and verified
 
-- Slice 2 (UI badge + save route), Slice 3 (agent skill), Slice 4 (multi-language
-  grounding) are not yet implemented.
+- AC-5 (save route): `POST /api/git/architecture/model` in `git/routes.ts`
+  persists the resolved model to `.better-harness/architecture/` and clears the
+  reading cache. It refuses to overwrite a declared model without
+  `overwrite: true` (`ARCH_MODEL_DECLARED`), surfaces an unreadable model as
+  `409`, and is the only write path — reads never write. Registered in
+  `server.ts`.
+- AC-5 (UI): `ArchitectureImpactView.tsx` shows an `Auto-generated · <confidence>`
+  badge and a `Save as declared model` action only when `modelSource.origin ===
+  "generated"`, with a status line for the save outcome; badge and save-note
+  styles added to `workbench.css` (badge scoped under `.arch-header` to beat the
+  muted-span rule).
+- Verified by: `npx vitest run test/architecture-model-generator.test.ts
+  test/architecture-impact.test.ts` (2 files, 32 tests, all passing) covering the
+  save round-trip (generated → saved → read as declared) and the
+  overwrite guard; `npx tsc --noEmit` clean over `packages/harness-studio`.
+- Follow-up: a Playwright screenshot of the generated badge needs a
+  provider-backed Impact pane (native arch host), so the badge's visual review is
+  pending a desktop run.
+
+### Slices 3–4 — still open
+
+- Slice 3 (agent skill) and Slice 4 (multi-language grounding) are not yet
+  implemented. `Refine with agent` lands with Slice 3.
 
 ## Decisions and Risks
 

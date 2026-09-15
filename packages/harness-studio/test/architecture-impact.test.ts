@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -286,6 +286,48 @@ describe("arch.snapshot route", () => {
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
     expect(payload.changedHitIds).toEqual(["api"]);
     expect(payload.impactedHitIds).toEqual(["store"]);
+  });
+
+  it("saves a generated model as the declared one, and then reads it as declared", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider, { declaredModel: false });
+
+    const before = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(before.modelSource).toMatchObject({ origin: "generated" });
+
+    const save = await fetch(`${fixture.url}/api/git/architecture/model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(save.status).toBe(200);
+    expect(await save.json()).toMatchObject({ saved: true, origin: "declared" });
+
+    // The file is now on disk, in the arch-core shape the discovery validates,
+    // and the next reading projects onto it as a declared model.
+    const written: unknown = JSON.parse(await readFile(join(fixture.path, ".better-harness", "architecture", "model.json"), "utf8"));
+    expect(Array.isArray((written as { elements?: unknown }).elements)).toBe(true);
+    const after = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(after.modelSource).toEqual({ origin: "declared" });
+  });
+
+  it("refuses to overwrite a declared model unless the save confirms it", async () => {
+    const fixture = await openFixture(recordingProvider(() => snapshotResult()));
+
+    const blocked = await fetch(`${fixture.url}/api/git/architecture/model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(blocked.status).toBe(409);
+    expect((await blocked.json()).code).toBe("ARCH_MODEL_DECLARED");
+
+    const forced = await fetch(`${fixture.url}/api/git/architecture/model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ overwrite: true }),
+    });
+    expect(forced.status).toBe(200);
   });
 
   it("answers a second request for the same commit from cache", async () => {

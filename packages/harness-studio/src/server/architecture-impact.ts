@@ -206,7 +206,7 @@ function pathDigest(trackedPaths: readonly string[]): string {
   return digest(trackedPaths.join("\n"));
 }
 
-async function listTrackedFilesAtRoot(repoRoot: string): Promise<string[]> {
+export async function listTrackedFilesAtRoot(repoRoot: string): Promise<string[]> {
   try {
     // Reuse the git-history module's track listing if available
     // For now, use git ls-files
