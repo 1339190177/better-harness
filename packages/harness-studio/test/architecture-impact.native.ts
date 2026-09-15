@@ -51,7 +51,7 @@ async function makeDirectory(prefix: string): Promise<string> {
   return path;
 }
 
-/** Two commits whose second one changes a module that imports another one. */
+/** Two commits: the second changes a module that is called from outside it. */
 async function makeGitWorkspace(): Promise<{ path: string; sha: string }> {
   const path = await makeDirectory("studio-architecture-native-");
   git(path, "init", "-b", "main");
@@ -61,9 +61,10 @@ async function makeGitWorkspace(): Promise<{ path: string; sha: string }> {
   await writeFile(join(path, "api.ts"), "import { load } from \"./store\";\nexport const read = () => load();\n", "utf8");
   git(path, "add", "store.ts", "api.ts");
   git(path, "commit", "-m", "feat: add store and api");
-  await writeFile(join(path, "api.ts"), "import { load } from \"./store\";\nexport const read = () => load() + 1;\n", "utf8");
-  git(path, "add", "api.ts");
-  git(path, "commit", "-m", "feat: read one more");
+  // Only the module underneath changes; `api.ts` is its caller and stays put.
+  await writeFile(join(path, "store.ts"), "export function load(): number {\n  return 2;\n}\n", "utf8");
+  git(path, "add", "store.ts");
+  git(path, "commit", "-m", "feat: read two");
   await writeDeclaredModel(path);
   return { path, sha: git(path, "rev-parse", "HEAD") };
 }
@@ -76,13 +77,13 @@ async function writeDeclaredModel(root: string): Promise<void> {
     elements: [{ id: "api", name: "API", kind: "Container", description: null, technology: "TypeScript", tags: ["core"], parent_id: null }],
     relationships: [],
   }), "utf8");
-  await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "**/api.ts", element_id: "api" }]), "utf8");
+  await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "*.ts", element_id: "api" }]), "utf8");
 }
 
 const staged = transports.filter((entry) => existsSync(entry.executable));
 
 describe.skipIf(staged.length === 0)("architecture impact over the staged host", () => {
-  it.each(staged)("projects a real commit onto the declared model over $transport", async ({ executable, transport }) => {
+  it.each(staged)("reads the change one import hop out over $transport", async ({ executable, transport }) => {
     const appDir = await makeDirectory("studio-architecture-native-app-");
     await writeFile(join(appDir, "index.html"), "<!doctype html><title>Architecture native</title>", "utf8");
     const workspace = await makeGitWorkspace();
@@ -107,12 +108,14 @@ describe.skipIf(staged.length === 0)("architecture impact over the staged host",
     // The facts layer really ran: the changed module carries symbols, and the
     // overlay counts them rather than answering a zero it never computed.
     expect(payload.overlay.changedSymbols).toBeGreaterThan(0);
-    expect(payload.overlay.impactedFiles.length).toBeGreaterThan(0);
-    // And the projection is real: the declared model came back, and the binding
-    // marked the element whose module this commit changed.
+    // And the radius is real: `api.ts` was not touched by this commit, but it
+    // calls the module that was, so the hop around the change makes it impacted.
+    expect(payload.overlay.impactedSymbols).toBeGreaterThan(0);
+    expect(payload.overlay.impactedFiles).toContain("api.ts");
+    expect(payload.omitted).toEqual([]);
+    // The projection is real too: the declared element came back marked.
     expect(payload.elements).toEqual([expect.objectContaining({ id: "api", kind: "Container" })]);
     expect(payload.changedHitIds).toEqual(["api"]);
-    expect(payload.omitted).toEqual([]);
     expect(payload.dsl).toContain("workspace");
   }, 90_000);
 });

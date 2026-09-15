@@ -16,12 +16,15 @@ use serde_json::{json, Value};
 
 use crate::wire::{
     encode_error, encode_ok, parse_request_frame, RequestFrame, HOST_PROTOCOL_VERSION,
+    MAX_FRAME_BYTES,
 };
 
 pub const MAX_REVISION_BYTES: usize = 2 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 4096;
 pub const MAX_FILE_COUNT: usize = 800;
 pub const MAX_FILE_BYTES: usize = 512_000;
+/// How many unreadable files one reply names before it just counts them.
+const MAX_SKIPPED_FILES: usize = 50;
 
 /// Common refusal type.
 struct Refusal {
@@ -86,7 +89,16 @@ fn dispatch(frame: &RequestFrame) -> Result<String, String> {
             }),
         ),
         "arch.snapshot" => match snapshot(&frame.params) {
-            Ok(value) => encode_ok(frame.id, value),
+            // A reply over the frame limit is a refusal, not a reason to end the
+            // process: the caller asked a bounded question and deserves a bounded
+            // answer, and the next request must still be served.
+            Ok(value) => encode_ok(frame.id, value).or_else(|_| {
+                encode_error(
+                    frame.id,
+                    "limit/response",
+                    format!("the projection exceeds the {MAX_FRAME_BYTES} byte reply limit"),
+                )
+            }),
             Err(refusal) => encode_error(frame.id, refusal.code, refusal.message),
         },
         "shutdown" => encode_ok(frame.id, json!({ "status": "shutting-down" })),
@@ -162,7 +174,16 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
     Ok(json!({
         "snapshot": snapshot,
         "dsl": dsl,
-        "facts": facts,
+        // Per-file facts stay behind: what leaves the host is the projection and
+        // what could not be read, so the reply does not grow with how many files
+        // the caller sent.
+        "skipped": facts
+            .iter()
+            .filter(|fact| !fact.diagnostics.is_empty())
+            .take(MAX_SKIPPED_FILES)
+            .map(|fact| json!({ "path": fact.path, "diagnostics": fact.diagnostics }))
+            .collect::<Vec<_>>(),
+        "skippedCount": facts.iter().filter(|fact| !fact.diagnostics.is_empty()).count(),
         "graph": {
             "parsedFiles": graph.parsed_files,
             "truncated": graph.truncated,
@@ -229,7 +250,10 @@ mod tests {
             "changed_paths": ["/test.js"],
         }));
         assert!(reply.get("error").is_none(), "unexpected error: {reply}");
-        assert_eq!(reply["result"]["facts"][0]["imports"].as_array().unwrap().len(), 1);
+        // What crosses the wire is the projection, not the per-file facts, so a
+        // reply stays bounded however many files the caller sent.
+        assert_eq!(reply["result"]["graph"]["parsedFiles"], 1);
+        assert_eq!(reply["result"]["skippedCount"], 0);
         assert!(reply["result"]["snapshot"]["model"]["elements"].as_array().unwrap().is_empty());
         assert!(!reply["result"]["dsl"].as_str().unwrap().is_empty());
         // The change overlay reports the impacted paths, so a caller never has
@@ -238,6 +262,17 @@ mod tests {
             reply["result"]["overlay"]["impactedFiles"].as_array().unwrap(),
             &vec![serde_json::json!("/test.js")]
         );
+    }
+
+    #[test]
+    fn names_a_file_it_could_not_extract() {
+        let reply = call("arch.snapshot", json!({
+            "sources": [{ "path": "notes.md", "source": "# Notes\n" }],
+            "tracked_paths": ["notes.md"],
+        }));
+        assert!(reply.get("error").is_none(), "unexpected error: {reply}");
+        assert_eq!(reply["result"]["skippedCount"], 1);
+        assert_eq!(reply["result"]["skipped"][0]["path"], "notes.md");
     }
 
     #[test]
@@ -274,6 +309,34 @@ mod tests {
         // The binding is what turns a changed file into a marked boundary.
         assert_eq!(reply["result"]["snapshot"]["changed_hit_ids"][0], "studio");
         assert_eq!(reply["result"]["overlay"]["changedSymbols"], 1);
+    }
+
+    #[test]
+    fn counts_a_caller_the_commit_did_not_change_as_impacted() {
+        // `api.ts` is not part of the change; it calls what is. Without a caller
+        // on each call site the graph has no edge to find, and this reads 0.
+        let reply = call("arch.snapshot", json!({
+            "sources": [
+                {
+                    "path": "store.ts",
+                    "source": "export function load(): number {\n  return 2;\n}\n",
+                },
+                {
+                    "path": "api.ts",
+                    "source": "import { load } from \"./store\";\nexport const read = () => load();\n",
+                },
+            ],
+            "tracked_paths": ["store.ts", "api.ts"],
+            "changed_paths": ["store.ts"],
+        }));
+        assert!(reply.get("error").is_none(), "unexpected error: {reply}");
+        assert_eq!(reply["result"]["overlay"]["changedSymbols"], 1);
+        assert_eq!(reply["result"]["overlay"]["impactedSymbols"], 1);
+        assert!(reply["result"]["overlay"]["impactedFiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "api.ts"));
     }
 
     #[test]

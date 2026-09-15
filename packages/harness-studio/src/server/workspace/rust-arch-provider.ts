@@ -92,6 +92,13 @@ function readSnapshot(result: Record<string, unknown>): ArchitectureImpactReadin
     observedEdges: arrayOf(snapshot.observed_edges, "observedEdges").map(readRelationship),
     codeHitIds: arrayOf(snapshot.code_hit_ids, "codeHitIds").map((value) => text(value, "codeHitId")),
     changedHitIds: arrayOf(snapshot.changed_hit_ids, "changedHitIds").map((value) => text(value, "changedHitId")),
+    skipped: arrayOf(result.skipped, "skipped").map((value) => {
+      const entry = record(value) ?? fail("skipped entry");
+      return {
+        path: text(entry.path, "skipped.path"),
+        diagnostics: arrayOf(entry.diagnostics, "skipped.diagnostics").map((message) => text(message, "skipped.diagnostic")),
+      };
+    }),
     overlay: {
       changedSymbols: count(overlay.changedSymbols, "changedSymbols"),
       impactedSymbols: count(overlay.impactedSymbols, "impactedSymbols"),

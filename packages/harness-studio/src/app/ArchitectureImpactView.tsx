@@ -24,6 +24,14 @@ interface DiagramNode {
   rows: DiagramNode[][];
 }
 
+/** A label is what the omitted-file notice prints for each bound. */
+const OMISSION_REASON: Record<ArchitectureImpact["omitted"][number]["reason"], string> = {
+  "too-large": "over the per-file bound",
+  "request-budget": "past the request budget",
+  "import-hop": "past the one-hop neighbourhood",
+  "unsupported-language": "in a language the host does not extract",
+};
+
 /** A leaf is one drawn element; a boundary is one element that contains others. */
 const LEAF_W = 176;
 const LEAF_H = 54;
@@ -115,7 +123,7 @@ export function ArchitectureImpactView({ sha }: Props) {
           // A projection that stays quiet about the files it skipped reads as
           // "nothing there", which is the one thing it must never imply.
           <span className="arch-omitted">
-            {data.omitted.map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${omission.reason === "too-large" ? "over the per-file bound" : "past the request budget"}: ${omission.examplePath})`).join("; ")}
+            {data.omitted.map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${OMISSION_REASON[omission.reason]}: ${omission.examplePath})`).join("; ")}
           </span>
         )}
         {data.dsl && <button type="button" className="arch-btn" onClick={exportDsl}>Export .dsl</button>}
@@ -205,7 +213,7 @@ export function ArchitectureImpactView({ sha }: Props) {
             <LegendEdge x={MARGIN + 412} y={diagram.height - 29} observed={false} label="declared relationship" />
             <LegendEdge x={MARGIN + 592} y={diagram.height - 29} observed label="code-fact call" />
             <text x={MARGIN} y={diagram.height - 10} className="arch-legend-note">
-              Code facts only: runtime traffic, logs and traces were not evaluated, so a call that never happened reads like one that did.
+              Impact radius covers the changed files and the tracked modules one import hop around them. Code facts only: runtime traffic, logs and traces were not evaluated.
             </text>
           </g>
         </svg>

@@ -262,6 +262,19 @@ replace the Artifact provider lane.
   paint onto the cloned nodes, because an exported file that depends on the app's stylesheet
   arrives as an unreadable black rectangle in every other viewer.
 
+- AC-3 (Impact radius, task 13 in part): `server/architecture-hop.ts` hands the host the
+  parseable, tracked files in a changed file's own directory and the one above it — where a
+  relative import can reach it — bounded at 200 candidates and reporting what the bound dropped.
+  They travel as context, never as changed paths, and a path already considered is not
+  reconsidered. `arch-core` now attributes every call site to its enclosing symbol and reads
+  class methods and JSX usage, so a caller the commit did not touch finally appears: for
+  `fbba212d` the reading went from 0 to 61 impacted symbols and 0 to 4 code-fact edges.
+- AC-3 (Bounded reply): the host answers with the projection and the files it could not extract,
+  not the per-file facts, so a reply no longer grows with how many files were sent; an
+  over-limit reply is now a `limit/response` refusal that names the bound instead of a host that
+  exits during the request. Files in a language v1 does not extract are reported in `omitted`
+  with their diagnostics rather than dropped silently.
+
 ### Verified by
 
 - `npx vitest run` in `packages/harness-studio` (90 files, 696 tests), including the new
@@ -270,11 +283,14 @@ replace the Artifact provider lane.
 - `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
   commit read through the real provider over both `stdio` and the macOS NSXPC bridge, publishing
   a declared model and asserting the projection comes back with that element marked changed.
+- The full Rust suite: `npm run test:rust -w @qoder-ai/better-harness-desktop` (every
+  capability crate, including `arch-core` through `arch-service`).
 - A dev-shell probe over this repository: `fbba212d` answers `status: "impact"`, 23 elements,
-  12 edges, 114 changed symbols, drawing the declared system → containers → components tree
-  with Harness Studio, Studio Desktop Shell and Documentation marked changed; the same probe
-  exports the pane's SVG and renders it in a plain browser, and a 390px viewport keeps the page
-  itself free of overflow (the canvas scrolls).
+  16 edges, 114 changed symbols and **61 impacted symbols**, drawing the declared system →
+  containers → components tree with Harness Studio, Studio Desktop Shell and Documentation
+  marked changed, and naming the 6 files it could not extract; the same probe exports the pane's
+  SVG and renders it in a plain browser, and a 390px viewport keeps the page itself free of
+  overflow (the canvas scrolls).
 - `npm test` in `packages/better-harness-desktop` (10 tests) for the versioned start contract and
   `npm run smoke -w @qoder-ai/better-harness-desktop` for the Electron receipt
   (`nativeProof.archRuntime: "arch-v1-nsxpc"`, `archPid` distinct from `archBridgePid`).
@@ -289,19 +305,17 @@ replace the Artifact provider lane.
 - `dagre` layout and the four-pane browser evidence (tasks 16-18, 23). The pane's own layout is
   hierarchical and bounded, but it has no rank/flow ordering: edges cross boundaries and are not
   routed around boxes.
-- The impact radius. `arch-core` builds its symbol graph from the changed files alone, so
-  "impacted" only counts callers that this commit also changed and reads 0 for most commits.
-  A bounded one-hop expansion over the tracked importers of each changed file is the next step.
+- The radius is one hop. A caller two modules away is still out of scope, and the hop's
+  candidate rule covers a change's own directory and its parent only.
 - Authoring a model is content, not code: this repository ships one under
   `.better-harness/architecture/` so its own commits can be read in the pane.
 
 ### Evidence that was expected but is not yet produced
 
-- `npm run test:rust -w @qoder-ai/better-harness-desktop` (the full cross-service Rust suite);
-  only `arch-service` was run for this change.
 - `npm run better-harness-desktop:pack` plus the packaged smoke receipt. The receipt above comes
   from the dev shell, so the `after-pack` install of the arch service is reviewed but not run.
-- Playwright screenshots for the pane at three widths in light and dark.
+- Playwright screenshots committed with the change for the pane at three widths in both themes;
+  the probes above take them, but the resulting images live outside the repository.
 - a `node scripts/review-trigger/cli.mjs --mode=stop --json` run whose envelope
   contains the new source's findings.
 

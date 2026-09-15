@@ -41,8 +41,9 @@ export interface ArchitectureOverlay {
  */
 export interface ArchitectureOmission {
   count: number;
-  /** Over the host's per-file bound, or past this reading's request budget. */
-  reason: "too-large" | "request-budget";
+  /** Over the host's per-file bound, past this reading's request budget, past
+   * the one-hop neighbourhood, or a language the host cannot extract. */
+  reason: "too-large" | "request-budget" | "import-hop" | "unsupported-language";
   /** One path from the group, so a reader can act on it. */
   examplePath: string;
 }
@@ -53,7 +54,10 @@ export interface ArchitectureOmission {
  * which files were left out are facts about the request, not claims a provider
  * gets to make about its own output.
  */
-export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted">;
+export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted"> & {
+  /** Files the host could not extract facts from, which the reading reports. */
+  skipped: Array<{ path: string; diagnostics: string[] }>;
+};
 
 export interface ArchitectureImpact {
   kind: "CommitArchitectureImpactV1";

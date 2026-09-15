@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { isArchitectureImpact, type ArchitectureImpactProvider, type ArchitectureImpactReading } from "../src/contracts/architecture-impact.js";
+import { MAX_HOP_FILES, selectImportHop } from "../src/server/architecture-hop.js";
 import { startHarnessStudioServer, type StartedHarnessStudioServer } from "../src/server/server.js";
 import {
   ARCH_HOST_PROTOCOL_VERSION,
@@ -52,17 +53,19 @@ async function writeDeclaredModel(root: string, model: unknown = FIXTURE_MODEL):
   await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "**/greeting.ts", element_id: "api" }]), "utf8");
 }
 
-/** Two commits whose second one changes a tracked module. */
+/** Two commits whose second one changes a module that a neighbour calls. */
 async function makeGitWorkspace(): Promise<Fixture> {
   const path = await makeDirectory("studio-architecture-");
   git(path, "init", "-b", "main");
   git(path, "config", "user.name", "Alice Example");
   git(path, "config", "user.email", "alice@example.com");
   await writeFile(join(path, "greeting.ts"), "export const greeting = \"hello\";\n", "utf8");
-  git(path, "add", ".");
+  // Tracked and unchanged: the neighbour whose import the hop has to read.
+  await writeFile(join(path, "caller.ts"), "import { greeting } from \"./greeting\";\nexport const call = () => greeting;\n", "utf8");
+  git(path, "add", "greeting.ts", "caller.ts");
   git(path, "commit", "-m", "feat: add greeting");
   await writeFile(join(path, "greeting.ts"), "export const greeting = \"hi there\";\n", "utf8");
-  git(path, "add", ".");
+  git(path, "add", "greeting.ts");
   git(path, "commit", "-m", "feat: greet differently");
   return { path, sha: git(path, "rev-parse", "HEAD") };
 }
@@ -80,6 +83,7 @@ function snapshotResult(changedSymbols = 2): unknown {
       changed_hit_ids: ["api"],
     },
     dsl: "workspace \"Architecture Impact\" \"declared + observed\" {}\n",
+    skipped: [],
     overlay: { changedSymbols, impactedSymbols: 1, impactedFiles: ["greeting.ts"] },
   };
 }
@@ -96,10 +100,37 @@ function recordingProvider(result: () => unknown): ArchitectureImpactProvider & 
         modelJson: params.modelJson,
         bindings: [...params.bindings],
       });
-      return result() as ArchitectureImpactReading;
+      // A provider always answers with the files it could not extract, so a stub
+      // has to as well or it is not answering the question that was asked.
+      return { skipped: [], ...(result() as Partial<ArchitectureImpactReading>) } as ArchitectureImpactReading;
     },
   };
 }
+describe("import hop", () => {
+  it("offers the neighbours a relative import can reach, never the change itself", () => {
+    const hop = selectImportHop(
+      ["src/store.ts", "src/api.ts", "src/feature/deep.ts", "docs/readme.md"],
+      ["src/store.ts"],
+      new Set(),
+    );
+    // Same directory first, then the one above it; Markdown cannot be parsed.
+    expect(hop.candidates).toEqual(["src/api.ts"]);
+    expect(hop.truncated).toBe(0);
+  });
+
+  it("reaches the directory above the change", () => {
+    const hop = selectImportHop(["src/index.ts", "src/feature/store.ts"], ["src/feature/store.ts"], new Set());
+    expect(hop.candidates).toEqual(["src/index.ts"]);
+  });
+
+  it("stays inside its bound and reports what it left out", () => {
+    const tracked = Array.from({ length: MAX_HOP_FILES + 5 }, (_, index) => `src/m${String(index).padStart(3, "0")}.ts`);
+    const hop = selectImportHop(tracked, ["src/subject.ts"], new Set());
+    expect(hop.candidates).toHaveLength(MAX_HOP_FILES);
+    expect(hop.truncated).toBe(5);
+    expect(hop.firstDropped).toBe(`src/m${String(MAX_HOP_FILES).padStart(3, "0")}.ts`);
+  });
+});
 
 describe("arch.snapshot route", () => {
   async function openFixture(
@@ -134,7 +165,7 @@ describe("arch.snapshot route", () => {
     expect(payload.dsl).toBe("");
   });
 
-  it("hands the commit's changed sources, tracked paths and declared model to the host", async () => {
+  it("hands the commit's changed sources, its one-hop neighbours, tracked paths and declared model to the host", async () => {
     const provider = recordingProvider(() => snapshotResult());
     const fixture = await openFixture(provider);
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
@@ -142,9 +173,11 @@ describe("arch.snapshot route", () => {
     expect(payload).toMatchObject({ status: "impact", sha: fixture.sha, dsl: (snapshotResult() as { dsl: string }).dsl });
     expect(payload.omitted).toEqual([]);
     expect(provider.calls).toHaveLength(1);
+    // The neighbour is sent as context so a caller the commit did not touch can
+    // be found, while the change itself stays exactly the changed file.
+    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts", "caller.ts"]);
     expect(provider.calls[0]!.changedPaths).toEqual(["greeting.ts"]);
-    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts"]);
-    expect(provider.calls[0]!.trackedPaths).toContain("greeting.ts");
+    expect(provider.calls[0]!.trackedPaths).toContain("caller.ts");
     // Without the declared model the projection would have nothing to mark, so
     // it has to reach the host, together with the binding that maps paths onto it.
     expect(provider.calls[0]!.modelJson).toEqual(FIXTURE_MODEL);
@@ -217,8 +250,8 @@ describe("arch.snapshot route", () => {
     expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", sha, status: "impact" });
     expect(payload.omitted).toEqual([{ count: 1, reason: "too-large", examplePath: "bulk.json" }]);
     // The unreadable file is not sent as an empty source, and the commit's other
-    // changed file is still read.
-    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts"]);
+    // changed file is still read — as is the neighbour the hop adds.
+    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts", "caller.ts"]);
   });
 
   it("reports a commit past the request budget instead of failing it", async () => {
@@ -237,7 +270,9 @@ describe("arch.snapshot route", () => {
     expect(payload.status).toBe("impact");
     expect(payload.omitted).toHaveLength(1);
     expect(payload.omitted[0]).toMatchObject({ reason: "request-budget", count: 2 });
-    expect(provider.calls[0]!.sources).toHaveLength(6);
+    // Six changed files fit the budget and the seventh does not; the hop's two
+    // neighbours cost so little that they still fit after them.
+    expect(provider.calls[0]!.sources).toHaveLength(8);
   });
 });
 
@@ -310,6 +345,7 @@ describe("native arch host provider", () => {
         observedEdges: [{ id: "obs", sourceId: "api", targetId: "store", kind: "ResolvedCall" }],
         codeHitIds: ["api"],
         changedHitIds: ["api"],
+        skipped: [],
         overlay: { changedSymbols: 2, impactedSymbols: 1, impactedFiles: ["greeting.ts"] },
         dsl: (snapshotResult() as { dsl: string }).dsl,
       });
@@ -339,7 +375,7 @@ describe("native arch host provider", () => {
       delete copy[field];
       return copy;
     };
-    for (const result of [without("snapshot"), without("overlay"), without("dsl"), { ...valid, snapshot: [] }, { ...valid, snapshot: { model: { elements: [], relationships: [] } } }]) {
+    for (const result of [without("snapshot"), without("overlay"), without("dsl"), without("skipped"), { ...valid, snapshot: [] }, { ...valid, snapshot: { model: { elements: [], relationships: [] } } }]) {
       const child = fakeHostProcess((request) => ({ version: 1, id: request.id, result }));
       const host = createRustArchHost({ executable: "/native/harness-arch-host", spawnProcess: () => child as never });
       try {

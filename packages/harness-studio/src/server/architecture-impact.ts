@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import type { GitCommitDetail } from "../contracts/git-history.js";
 import type { ArchitectureImpact, ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
 import { discoverDeclaredModel } from "./architecture-model.js";
+import { selectImportHop } from "./architecture-hop.js";
 import { GitHistoryError, readGitRevisionFile } from "./git-history.js";
 
 /**
@@ -82,6 +83,24 @@ export async function readCommitArchitectureImpact(
     .filter((f) => f.status !== "deleted")
     .map((f) => f.path);
 
+  // One import hop: the parseable files around the change are sent as context,
+  // because a caller the commit did not touch is otherwise invisible and
+  // "impacted" reads 0 for every commit. They are never changed paths, and the
+  // hop reports its own bound instead of quietly narrowing the radius. A path
+  // already considered is not reconsidered here: a file too large to read stays
+  // too large, and counting it twice would inflate what the notice reports.
+  const considered = new Set([...sources.map(({ path }) => path), ...tooLarge, ...overBudget]);
+  const hop = selectImportHop(trackedPaths, changedPaths, considered);
+  for (const path of hop.candidates) {
+    if (sources.length >= MAX_FILE_COUNT) { overBudget.push(path); continue; }
+    const read = await readChangedSource(repoRoot, sha, path);
+    if ("omitted" in read) { tooLarge.push(path); continue; }
+    const bytes = Buffer.byteLength(read.source, "utf8");
+    if (bytes > budget) { overBudget.push(path); continue; }
+    budget -= bytes;
+    sources.push({ path, source: read.source });
+  }
+
   const raw = await provider.architectureImpact({
     sources,
     trackedPaths,
@@ -104,6 +123,8 @@ export async function readCommitArchitectureImpact(
     omitted: [
       ...(tooLarge.length === 0 ? [] : [{ count: tooLarge.length, reason: "too-large" as const, examplePath: tooLarge[0]! }]),
       ...(overBudget.length === 0 ? [] : [{ count: overBudget.length, reason: "request-budget" as const, examplePath: overBudget[0]! }]),
+      ...(hop.truncated === 0 ? [] : [{ count: hop.truncated, reason: "import-hop" as const, examplePath: hop.firstDropped }]),
+      ...(raw.skipped.length === 0 ? [] : [{ count: raw.skipped.length, reason: "unsupported-language" as const, examplePath: raw.skipped[0]!.path }]),
     ],
   };
 

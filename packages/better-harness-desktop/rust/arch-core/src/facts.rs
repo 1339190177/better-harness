@@ -7,8 +7,9 @@
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     ArrowFunctionBody, BindingPattern, CallExpression, ExportDefaultDeclarationKind, Expression,
-    FormalParameters, ImportDeclaration, ImportDeclarationSpecifier, NewExpression, Program,
-    Statement, VariableDeclarator,
+    FormalParameters, ImportDeclaration, ImportDeclarationSpecifier, JSXAttributeItem, JSXAttributeValue,
+    JSXElementName, JSXMemberExpressionObject, JSXOpeningElement, MethodDefinition, NewExpression,
+    Program, PropertyKey, Statement, VariableDeclarator,
 };
 use oxc_syntax::scope::ScopeFlags;
 use oxc_ast_visit::Visit;
@@ -91,6 +92,48 @@ fn bp_name(pat: &BindingPattern<'_>) -> String {
         BindingPattern::BindingIdentifier(b) => b.name.as_str().to_string(),
         _ => String::new(),
     }
+}
+
+/** A member's name, so a method is registered as the symbol its calls belong to. */
+fn attribute_name(key: &PropertyKey<'_>) -> String {
+    match key {
+        PropertyKey::StaticIdentifier(id) => id.name.as_str().to_string(),
+        PropertyKey::StringLiteral(literal) => literal.value.as_str().to_string(),
+        PropertyKey::NumericLiteral(literal) => literal.value.to_string(),
+        _ => String::new(),
+    }
+}
+
+/**
+ * How a JSX element names what it renders.
+ *
+ * `<Component />` is a module's own code reaching another module's code, just as
+ * a call is, and for a UI it is the common case: without it a change to a
+ * component has no callers and its radius reads empty.
+ */
+fn jsx_usage(name: &JSXElementName<'_>) -> (String, Option<String>, Option<String>) {
+    match name {
+        JSXElementName::IdentifierReference(id) => {
+            let identifier = id.name.as_str().to_string();
+            if !is_component_name(&identifier) { return (String::new(), None, None); }
+            (identifier, None, None)
+        }
+        JSXElementName::MemberExpression(member) => {
+            let object = match &member.object {
+                JSXMemberExpressionObject::IdentifierReference(id) => id.name.as_str().to_string(),
+                _ => return (String::new(), None, None),
+            };
+            if !is_component_name(&object) { return (String::new(), None, None); }
+            let property = member.property.name.as_str().to_string();
+            (format!("{object}.{property}"), Some(object), Some(property))
+        }
+        _ => (String::new(), None, None),
+    }
+}
+
+/** A lower-case JSX name is a host tag (`<div>`), not a module's own component. */
+fn is_component_name(name: &str) -> bool {
+    name.chars().next().is_some_and(|first| first.is_ascii_uppercase())
 }
 
 fn param_info(fp: &FormalParameters<'_>) -> (Vec<ParamInfo>, u32, String) {
@@ -187,12 +230,24 @@ struct FactsVisitor<'a> {
     call_sites: Vec<CallSite>,
     export_depth: u32,
     default_export: bool,
+    /// Enclosing functions, innermost last: what a call site belongs to. Without
+    /// this every edge in the graph is keyed by nobody, so a caller can never be
+    /// found and the impact radius is always empty.
+    callers: Vec<(String, String)>,
 }
 
 impl<'a> FactsVisitor<'a> {
     fn new(path: &'a str, source: &'a str) -> Self {
         Self { path, source, symbols: vec![], imports: vec![], call_sites: vec![],
-               export_depth: 0, default_export: false }
+               export_depth: 0, default_export: false, callers: vec![] }
+    }
+
+    /// The symbol a call site right now belongs to, if any.
+    fn current_caller(&self) -> (Option<String>, Option<String>) {
+        match self.callers.last() {
+            Some((id, name)) => (Some(id.clone()), Some(name.clone())),
+            None => (None, None),
+        }
     }
 
     fn into_facts(self) -> FileFacts {
@@ -216,19 +271,21 @@ impl<'a> FactsVisitor<'a> {
         else { vec![] }
     }
 
-    fn register_func(&mut self, name: &str, start: usize, end: usize, params: &FormalParameters<'_>, has_body: bool) {
-        if name.is_empty() { return; }
+    fn register_func(&mut self, name: &str, start: usize, end: usize, params: &FormalParameters<'_>, has_body: bool) -> Option<String> {
+        if name.is_empty() { return None; }
         let (p, a, sig) = param_info(params);
         let sl = line_number(self.source, start);
         let el = line_number(self.source, end);
+        let id = symbol_id(self.path, name, &sig, sl);
         self.symbols.push(Symbol {
-            id: symbol_id(self.path, name, &sig, sl),
+            id: id.clone(),
             name: name.to_owned(),
             export_names: self.export_names(name),
             kind: SymbolKind::Function,
             file_path: self.path.to_owned(),
             start_line: sl, end_line: el, arity: a, params: p, signature: sig, has_body,
         });
+        Some(id)
     }
 
     fn register_class(&mut self, name: &str, start: usize, end: usize) {
@@ -245,22 +302,43 @@ impl<'a> FactsVisitor<'a> {
         });
     }
 
+    /// Run `walk` with `caller` on the stack, so calls inside it are attributed.
+    fn with_caller<R>(&mut self, caller: Option<(String, String)>, walk: impl FnOnce(&mut Self) -> R) -> R {
+        let pushed = caller.is_some();
+        if let Some(frame) = caller { self.callers.push(frame); }
+        let result = walk(self);
+        if pushed { self.callers.pop(); }
+        result
+    }
+
+    /// Walk a function body with its own symbol as the caller of everything in it.
+    fn walk_body_as_caller(&mut self, caller: Option<(String, String)>, body: &[Statement<'a>]) {
+        self.with_caller(caller, |this| {
+            for stmt in body { this.visit_statement(stmt); }
+        });
+    }
+
     /// Walk function body statements for call sites. Returns the last pushed symbol if any.
     fn register_and_walk_func(&mut self, f: &oxc_ast::ast::Function<'a>) {
         let name = f.id.as_ref().map(|id| id.name.as_str().to_string()).unwrap_or_default();
-        if name.is_empty() { return; }
-        self.register_func(&name, f.span.start as usize, f.span.end as usize, &f.params, f.body.is_some());
-        if let Some(ref body) = f.body {
-            for stmt in &body.statements {
-                self.visit_statement(stmt);
-            }
-        }
+        let id = self.register_func(&name, f.span.start as usize, f.span.end as usize, &f.params, f.body.is_some());
+        let body = f.body.as_ref().map(|body| body.statements.as_slice()).unwrap_or(&[]);
+        self.walk_body_as_caller(id.map(|id| (id, name)), body);
     }
 
     /// Register an arrow as a named variable function.
-    fn register_arrow(&mut self, name: &str, arrow: &oxc_ast::ast::ArrowFunctionExpression<'a>) {
-        if name.is_empty() { return; }
-        self.register_func(name, arrow.span.start as usize, arrow.span.end as usize, &arrow.params, true);
+    fn register_arrow(&mut self, name: &str, arrow: &oxc_ast::ast::ArrowFunctionExpression<'a>) -> Option<String> {
+        self.register_func(name, arrow.span.start as usize, arrow.span.end as usize, &arrow.params, true)
+    }
+
+    /// A class method is a function the visitor would otherwise not read: its
+    /// body is where an object's calls live, and those calls need a caller.
+    fn walk_method(&mut self, method: &MethodDefinition<'a>) {
+        let name = attribute_name(&method.key);
+        let value = &method.value;
+        let id = self.register_func(&name, value.span.start as usize, value.span.end as usize, &value.params, value.body.is_some());
+        let body = value.body.as_ref().map(|body| body.statements.as_slice()).unwrap_or(&[]);
+        self.walk_body_as_caller(id.map(|id| (id, name)), body);
     }
 
     fn walk_body_for_calls(&mut self, body: &ArrowFunctionBody<'a>) {
@@ -342,19 +420,63 @@ impl<'a> Visit<'a> for FactsVisitor<'a> {
         self.walk_body_for_calls(&it.body);
     }
 
+    fn visit_method_definition(&mut self, it: &MethodDefinition<'a>) {
+        self.walk_method(it);
+    }
+
+    fn visit_jsx_opening_element(&mut self, it: &JSXOpeningElement<'a>) {
+        let (raw, receiver, member) = jsx_usage(&it.name);
+        if !raw.is_empty() {
+            let name = member.clone().unwrap_or_else(|| raw.clone());
+            let (caller_id, caller_name) = self.current_caller();
+            self.call_sites.push(CallSite {
+                raw_name: format!("<{raw} />"), name, receiver, member,
+                argument_count: it.attributes.len() as u32,
+                argument_types: vec![],
+                file_path: self.path.to_owned(),
+                line: line_number(self.source, it.span.start as usize),
+                caller_id, caller_name,
+                is_test: is_test(self.path),
+            });
+        }
+        // Attribute expressions are their own code: `<Row onClick={() => save()} />`
+        // still calls `save`.
+        for attribute in &it.attributes {
+            if let JSXAttributeItem::Attribute(attribute) = attribute {
+                if let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value {
+                    if let Some(expression) = container.expression.as_expression() {
+                        self.visit_expression(expression);
+                    }
+                }
+            }
+        }
+    }
+
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         if let Some(init) = &it.init {
             let name = bp_name(&it.id);
             match init {
                 Expression::ArrowFunctionExpression(arrow) => {
-                    if !name.is_empty() { self.register_arrow(&name, arrow); }
-                    self.walk_body_for_calls(&arrow.body);
+                    let id = self.register_arrow(&name, arrow);
+                    let statements = match &arrow.body {
+                        ArrowFunctionBody::FunctionBody(body) => Some(body.statements.as_slice()),
+                        _ => None,
+                    };
+                    // An expression-bodied arrow has no statement list, so its
+                    // calls are only reached by walking the expression — inside
+                    // the caller frame, or they belong to nobody.
+                    let expression = arrow.body.as_expression();
+                    self.with_caller(id.map(|id| (id, name)), |this| {
+                        if let Some(statements) = statements {
+                            for stmt in statements { this.visit_statement(stmt); }
+                        }
+                        if let Some(expression) = expression { this.visit_expression(expression); }
+                    });
                 }
                 Expression::FunctionExpression(func) => {
-                    self.register_func(&name, func.span.start as usize, func.span.end as usize, &func.params, func.body.is_some());
-                    if let Some(body) = &func.body {
-                        for s in &body.statements { self.visit_statement(s); }
-                    }
+                    let id = self.register_func(&name, func.span.start as usize, func.span.end as usize, &func.params, func.body.is_some());
+                    let body = func.body.as_ref().map(|body| body.statements.as_slice()).unwrap_or(&[]);
+                    self.walk_body_as_caller(id.map(|id| (id, name)), body);
                 }
                 other => { self.visit_expression(other); }
             }
@@ -372,13 +494,14 @@ impl<'a> Visit<'a> for FactsVisitor<'a> {
         let (raw, recv, member) = callee_info(&it.callee);
         let name = member.as_deref().unwrap_or(&raw).to_string();
         let arg_types: Vec<_> = it.arguments.iter().map(|a| arg_type(a)).collect();
+        let (caller_id, caller_name) = self.current_caller();
         self.call_sites.push(CallSite {
             raw_name: raw, name, receiver: recv, member,
             argument_count: it.arguments.len() as u32,
             argument_types: arg_types,
             file_path: self.path.to_owned(),
             line: line_number(self.source, it.span.start as usize),
-            caller_id: None, caller_name: None,
+            caller_id, caller_name,
             is_test: is_test(self.path),
         });
         // Walk arguments for nested calls
@@ -393,13 +516,14 @@ impl<'a> Visit<'a> for FactsVisitor<'a> {
         let (raw, recv, member) = callee_info(&it.callee);
         let name = member.as_deref().unwrap_or(&raw).to_string();
         let arg_types: Vec<_> = it.arguments.iter().map(|a| arg_type(a)).collect();
+        let (caller_id, caller_name) = self.current_caller();
         self.call_sites.push(CallSite {
             raw_name: format!("new {raw}"), name, receiver: recv, member,
             argument_count: it.arguments.len() as u32,
             argument_types: arg_types,
             file_path: self.path.to_owned(),
             line: line_number(self.source, it.span.start as usize),
-            caller_id: None, caller_name: None,
+            caller_id, caller_name,
             is_test: is_test(self.path),
         });
         for arg in &it.arguments {
