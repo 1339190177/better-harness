@@ -232,14 +232,30 @@ describe("arch.snapshot route", () => {
     expect(provider.calls[0]!.bindings).toEqual([{ pathGlob: "**/greeting.ts", elementId: "api" }]);
   });
 
-  it("says no model was declared rather than showing an empty projection", async () => {
+  it("projects onto a model generated from the worktree when none is declared", async () => {
     const provider = recordingProvider(() => snapshotResult());
     const fixture = await openFixture(provider, { declaredModel: false });
 
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
-    expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", status: "unavailable" });
-    expect(payload.error).toContain(".better-harness/architecture/model.json");
-    expect(provider.calls).toHaveLength(0);
+    // An absent declared model is no longer a dead end: the pane projects onto a
+    // model derived from the worktree, marked `generated` so a reader can tell it
+    // from an authored one rather than reading it as a declared fact.
+    expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", status: "impact" });
+    expect(payload.modelSource).toMatchObject({ origin: "generated" });
+    expect(provider.calls).toHaveLength(1);
+    // The generated model reaches the host in arch-core's own shape, and every
+    // element it holds is tagged `generated` rather than presented as declared.
+    const modelJson = provider.calls[0]!.modelJson as { elements: Array<{ kind: string; tags: string[] }> };
+    expect(modelJson.elements[0]).toMatchObject({ kind: "SoftwareSystem" });
+    expect(modelJson.elements.every((element) => element.tags.includes("generated"))).toBe(true);
+  });
+
+  it("marks a declared reading as declared, not generated", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider);
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(payload.modelSource).toEqual({ origin: "declared" });
   });
 
   it("names a declared model it cannot read instead of ignoring it", async () => {

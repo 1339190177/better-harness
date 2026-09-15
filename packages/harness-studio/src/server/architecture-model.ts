@@ -17,8 +17,9 @@
  * a partial guess would mark the wrong boundaries.
  */
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join, posix } from "node:path";
 import type { ArchitectureSourceBinding } from "../contracts/architecture-impact.js";
+import { generateArchitectureModel, type WorkspaceManifest } from "./architecture-model-generator.js";
 
 const MODEL_PATH = ".better-harness/architecture/model.json";
 const BINDINGS_PATH = ".better-harness/architecture/bindings.json";
@@ -26,6 +27,8 @@ const BINDINGS_PATH = ".better-harness/architecture/bindings.json";
 const MAX_MODEL_BYTES = 1024 * 1024;
 const DSL_PATTERN = /\.dsl$/u;
 const WORKSPACE_PATTERN = /(^|\/)(workspace|.*\.structurizr)\.json$/u;
+/** How many manifests generation reads: a boundary source, not a dataset. */
+const MAX_MANIFESTS = 200;
 
 export interface DeclaredModel {
   /** arch-core's `ArchitectureModel`: elements plus declared relationships. */
@@ -37,6 +40,21 @@ export type ModelDiscovery =
   | { kind: "model"; model: DeclaredModel }
   | { kind: "unreadable"; path: string; reason: string }
   | { kind: "absent"; looked: string[] };
+
+/** How a resolved model came to be, carried onto the reading a reader sees. */
+export type ModelOrigin = "declared" | "generated";
+
+/**
+ * The model a reading projects onto, and where it came from.
+ *
+ * A `declared` model is authored on disk; a `generated` one is derived from the
+ * worktree when none is declared, and carries a confidence so the pane can mark
+ * it as a candidate rather than an authored fact. An unreadable declared model
+ * stays `unreadable`: a broken authored model is never replaced by a guess.
+ */
+export type ResolvedModel =
+  | { kind: "model"; origin: ModelOrigin; model: DeclaredModel; confidence?: "high" | "medium" | "low" }
+  | { kind: "unreadable"; path: string; reason: string };
 
 /**
  * Find the declared model this worktree publishes.
@@ -127,4 +145,64 @@ async function readBindings(repoRoot: string): Promise<ArchitectureSourceBinding
   } catch {
     return [];
   }
+}
+
+/**
+ * Resolve the model a reading projects onto: the declared one when readable,
+ * otherwise a model generated from the worktree.
+ *
+ * Declared wins whenever it is present and valid. An unreadable declared model
+ * is surfaced as-is, never replaced by a generated one — a broken authored model
+ * is a defect to fix, not a reason to guess. Only a genuinely absent model falls
+ * back to generation, and the fallback is marked `generated` with a confidence
+ * so the pane presents it as a candidate.
+ */
+export async function resolveArchitectureModel(repoRoot: string, trackedPaths: readonly string[]): Promise<ResolvedModel> {
+  const declared = await discoverDeclaredModel(repoRoot, trackedPaths);
+  if (declared.kind === "model") return { kind: "model", origin: "declared", model: declared.model };
+  if (declared.kind === "unreadable") return declared;
+
+  const manifests = await readWorkspaceManifests(repoRoot, trackedPaths);
+  const generated = generateArchitectureModel({
+    repoName: rootSystemName(repoRoot, manifests),
+    trackedPaths,
+    manifests,
+  });
+  return {
+    kind: "model",
+    origin: "generated",
+    model: { modelJson: generated.modelJson, bindings: generated.bindings },
+    confidence: generated.confidence,
+  };
+}
+
+/**
+ * Read the parsed `package.json` manifests the worktree tracks, bounded so a
+ * monorepo's manifest set stays a boundary source and not an unbounded read.
+ */
+async function readWorkspaceManifests(repoRoot: string, trackedPaths: readonly string[]): Promise<WorkspaceManifest[]> {
+  const manifestPaths = trackedPaths
+    .filter((path) => basename(path) === "package.json")
+    .slice(0, MAX_MANIFESTS);
+  const manifests: WorkspaceManifest[] = [];
+  for (const path of manifestPaths) {
+    let name: string | undefined;
+    try {
+      const parsed: unknown = JSON.parse(await readFile(join(repoRoot, path), "utf8"));
+      if (parsed !== null && typeof parsed === "object" && typeof (parsed as { name?: unknown }).name === "string") {
+        name = (parsed as { name: string }).name;
+      }
+    } catch {
+      // A manifest that will not read or parse contributes no name; its path is
+      // still a boundary the generator can use.
+    }
+    manifests.push(name === undefined ? { path } : { path, name });
+  }
+  return manifests;
+}
+
+/** The name for the generated root system: the root manifest name, else the repo directory. */
+function rootSystemName(repoRoot: string, manifests: readonly WorkspaceManifest[]): string {
+  const root = manifests.find((manifest) => posix.dirname(manifest.path.replace(/\\/gu, "/")) === ".");
+  return root?.name ?? basename(repoRoot) ?? "This System";
 }

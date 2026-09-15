@@ -64,6 +64,18 @@ export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" 
   skipped: Array<{ path: string; diagnostics: string[] }>;
 };
 
+/**
+ * Where the projected model came from.
+ *
+ * A `declared` model is authored on disk; a `generated` one is derived from the
+ * worktree when none is declared, and carries a confidence so the pane can mark
+ * it as a candidate a reader confirms rather than an authored fact.
+ */
+export interface ArchitectureModelSource {
+  origin: "declared" | "generated";
+  confidence?: "high" | "medium" | "low";
+}
+
 export interface ArchitectureImpact {
   kind: "CommitArchitectureImpactV1";
   sha: string;
@@ -90,6 +102,8 @@ export interface ArchitectureImpact {
   dsl: string;
   /** Changed files this reading left out, grouped by reason. Empty when none. */
   omitted: ArchitectureOmission[];
+  /** Where the projected model came from. Absent on an `unavailable` reading. */
+  modelSource?: ArchitectureModelSource;
   /** Error message when unavailable. */
   error?: string;
 }
