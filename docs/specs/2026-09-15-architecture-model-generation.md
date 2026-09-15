@@ -172,10 +172,23 @@ a `declared` one on disk. A `GET` reading never writes to the user's repository.
   provider-backed Impact pane (native arch host), so the badge's visual review is
   pending a desktop run.
 
-### Slices 3–4 — still open
+### Slice 3 — implemented
 
-- Slice 3 (agent skill) and Slice 4 (multi-language grounding) are not yet
-  implemented. `Refine with agent` lands with Slice 3.
+- AC-6 (skill): `.agents/skills/architecture-model-bootstrap/SKILL.md` plus
+  `references/model-schema.md` guide an agent to refine the generated candidate
+  into a schema-valid proposal — naming, describing, re-kinding, merging,
+  splitting, and proposing relationships and external systems — under hard
+  grounding rules (every kept element has a binding to a real path; no invented
+  bindings; L1/external stay human-confirmed). The schema reference states the
+  exact arch-core shape discovery validates.
+- Verified by: `npx vitest run test/skills-docs/doc-link-graph.test.mjs` (8
+  tests) — the skill's `references/model-schema.md` link resolves.
+
+### Slice 4 — still open
+
+- Slice 4 (multi-language grounding behind a shared `FileFactsV1`) is not yet
+  implemented. Wiring the pane's `Refine with agent` action to an agent runtime
+  is a later step; the skill is invocable directly today.
 
 ## Decisions and Risks
 
