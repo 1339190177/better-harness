@@ -77,10 +77,8 @@ export const common: typeof enCommon = {
     compare: "对比",
   },
   group: {
-    control: "控制",
-    observe: "观察",
-    run: "运行",
-    validate: "验证",
+    daily: "日常",
+    professional: "专业",
   },
   destination: {
     definitions: "{{count}} 个定义",
@@ -211,7 +209,6 @@ export const common: typeof enCommon = {
     folder: "文件夹",
     removeAria: "移除项目：{{label}}",
     removeTitle: "移除 {{label}}",
-    views: "视图",
     viewsAria: "{{label}} 视图",
     configuredViewsAria: "Studio 视图",
     groupToggleAria: "显示或隐藏{{label}}视图",

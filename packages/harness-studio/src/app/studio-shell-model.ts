@@ -137,12 +137,34 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
               ? t("destination.secondAgentRequired")
               : t("destination.singleAgentOnly");
 
+  // Rows are ordered by the sidebar section they belong to. Daily reading —
+  // Sessions and its sub-routes, then the Customizations catalog — comes first;
+  // the professional workbenches (Memory, Compare, Debugger, Artifacts) follow.
+  // The sidebar groups consecutive rows that share a `group` label under one
+  // header, so this order is what draws the Daily and Professional sections.
   return [
-    { id: "memory", label: t("area.memory"), group: t("group.control"), availability: "ready", status: t("memoryReview.preview") },
+    {
+      id: "sessions",
+      label: t("area.sessions"),
+      group: t("group.daily"),
+      availability: config.workspaceConnected ? "ready" : "partial",
+      status: sessionsStatus(),
+    },
+    {
+      id: "session-performance", label: t("area.session-performance"), group: t("group.daily"),
+      availability: config.sessionPerformanceEnabled ? "ready" : "foundation", status: config.sessionPerformanceEnabled ? t("area.session-performance") : t("destination.collectorUnavailable"),
+    },
+    {
+      id: "commits",
+      label: t("area.commits"),
+      group: t("group.daily"),
+      availability: config.gitEnabled ? "ready" : config.workspaceConnected ? "partial" : "foundation",
+      status: config.gitEnabled ? t("destination.repositoryHistory") : config.workspaceConnected ? t("destination.notGitRepository") : t("destination.workspaceRequired"),
+    },
     {
       id: "customizations",
       label: t("area.customizations"),
-      group: t("group.control"),
+      group: t("group.daily"),
       availability: config.customizationAnalysisEnabled ? "ready" : "foundation",
       status: config.customizationAnalyzed
         ? t("destination.definitions", { count: config.customizationDefinitionCount })
@@ -150,42 +172,11 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
           ? t("destination.analyzeHosts")
           : t("destination.collectorUnavailable"),
     },
-    {
-      id: "sessions",
-      label: t("area.sessions"),
-      group: t("group.observe"),
-      availability: config.workspaceConnected ? "ready" : "partial",
-      status: sessionsStatus(),
-    },
-    {
-      id: "session-performance", label: t("area.session-performance"), group: t("group.observe"),
-      availability: config.sessionPerformanceEnabled ? "ready" : "foundation", status: config.sessionPerformanceEnabled ? t("area.session-performance") : t("destination.collectorUnavailable"),
-    },
-    {
-      id: "commits",
-      label: t("area.commits"),
-      group: t("group.observe"),
-      availability: config.gitEnabled ? "ready" : config.workspaceConnected ? "partial" : "foundation",
-      status: config.gitEnabled ? t("destination.repositoryHistory") : config.workspaceConnected ? t("destination.notGitRepository") : t("destination.workspaceRequired"),
-    },
-    {
-      id: "artifacts",
-      label: t("area.artifacts"),
-      group: t("group.observe"),
-      availability: "ready",
-      status: artifactsStatus(),
-    },
-    {
-      id: "debugger",
-      label: t("area.debugger"),
-      group: t("group.run"),
-      availability: debuggerReady ? "ready" : "foundation",
-      status: debuggerStatus(),
-    },
+    { id: "memory", label: t("area.memory"), group: t("group.professional"), availability: "ready", status: t("memoryReview.preview") },
     {
       id: "compare",
       label: t("area.compare"),
-      group: t("group.validate"),
+      group: t("group.professional"),
       availability: effectiveCompareSurface === "bench" && !config.experimentRunnable
         ? "partial"
         : effectiveCompareSurface === "sessions" && compareScope !== "cross-agent"
@@ -194,6 +185,20 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
             ? "ready"
             : config.workspaceConnected ? "partial" : "foundation",
       status: compareStatus(),
+    },
+    {
+      id: "debugger",
+      label: t("area.debugger"),
+      group: t("group.professional"),
+      availability: debuggerReady ? "ready" : "foundation",
+      status: debuggerStatus(),
+    },
+    {
+      id: "artifacts",
+      label: t("area.artifacts"),
+      group: t("group.professional"),
+      availability: "ready",
+      status: artifactsStatus(),
     },
   ];
 }

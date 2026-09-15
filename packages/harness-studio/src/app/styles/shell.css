@@ -414,7 +414,12 @@
 .studio-project-empty { margin: 0; padding: var(--space-md); display: flex; align-items: center; gap: var(--space-sm); color: var(--color-text-muted); }
 
 .studio-project-views { padding-top: var(--space-xs); }
-.studio-project-views h2 { min-height: var(--pane-header-height); margin: 0; padding: var(--space-sm) var(--space-md) var(--space-xs); display: flex; align-items: flex-end; color: var(--color-text-muted); font-size: var(--type-pane-size); font-weight: var(--weight-semibold); line-height: var(--type-pane-line); letter-spacing: var(--type-pane-track); }
+/* Section grouping: consecutive View rows that share a role sit under one muted
+   header (Daily, Professional), the macOS source-list convention for grouping
+   rows without adding a second control level. */
+.studio-nav-section { display: grid; min-width: 0; }
+.studio-nav-section-title { margin: 0; padding: var(--space-sm) var(--space-md) var(--space-xs); color: var(--color-text-muted); font-size: var(--type-meta-size); font-weight: var(--weight-semibold); }
+.studio-nav-section + .studio-nav-section .studio-nav-section-title { padding-top: var(--space-md); }
 
 /* A View that navigates by sub-route keeps those rows as the source list's second
    level: one disclosure row, then its indented children. The indent is the only

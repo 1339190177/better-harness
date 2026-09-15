@@ -58,14 +58,14 @@ describe("Studio control-plane navigation", () => {
     const destinations = studioDestinations(EMPTY, undefined, commonT);
 
     expect(destinations.map((destination) => destination.id)).toEqual([
-      "memory",
-      "customizations",
       "sessions",
       "session-performance",
       "commits",
-      "artifacts",
-      "debugger",
+      "customizations",
+      "memory",
       "compare",
+      "debugger",
+      "artifacts",
     ]);
     // The landing View must be one the shell can actually resolve.
     expect(destinations.map((destination) => destination.id)).toContain(STUDIO_DEFAULT_AREA);

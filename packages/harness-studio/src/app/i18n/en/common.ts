@@ -75,10 +75,8 @@ export const common = {
     compare: "Compare",
   },
   group: {
-    control: "Control",
-    observe: "Observe",
-    run: "Run",
-    validate: "Validate",
+    daily: "Daily",
+    professional: "Professional",
   },
   destination: {
     definitions: "{{count}} definition",
@@ -209,7 +207,6 @@ export const common = {
     folder: "Folder",
     removeAria: "Remove Project: {{label}}",
     removeTitle: "Remove {{label}}",
-    views: "Views",
     viewsAria: "{{label}} Views",
     configuredViewsAria: "Studio Views",
     groupToggleAria: "Show or hide {{label}} views",

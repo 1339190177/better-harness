@@ -98,14 +98,6 @@ export function ProjectSidebar(props: {
   // The sidebar now carries one level, so the roving tab stop covers the View
   // rows only. Projects moved to the switcher, which is a menu button with its
   // own keyboard contract.
-  const memory = props.destinations.find(destination => destination.id === "memory");
-  // The Customizations group is a catalog of definitions rather than a reading of
-  // the Project, so it closes the View list after the evidence workbenches.
-  const viewDestinations = [
-    ...props.destinations.filter(destination => destination.id !== "memory" && destination.id !== "customizations"),
-    ...(memory === undefined ? [] : [memory]),
-    ...props.destinations.filter(destination => destination.id === "customizations"),
-  ];
   // Two Views navigate by sub-route. Their rows are the sidebar's second level
   // rather than a strip inside the workspace, so the reader picks a Session
   // reading or a catalog kind in the same list that picks every other View.
@@ -117,7 +109,17 @@ export function ProjectSidebar(props: {
     ? "sessions"
     : destination.id === "customizations" ? "customizations" : undefined;
   const nested = new Set<StudioArea>(["session-performance", "commits"]);
-  const rowDestinations = viewDestinations.filter(destination => !nested.has(destination.id));
+  // The model already orders rows by section; the nested Session sub-routes ride
+  // inside the Sessions group rather than appearing as top-level rows.
+  const rowDestinations = props.destinations.filter(destination => !nested.has(destination.id));
+  // Consecutive rows that share a `group` label form one titled section, so the
+  // Daily and Professional headers come from the model order, not a second list.
+  const navSections = rowDestinations.reduce<{ label: string; rows: StudioDestination[] }[]>((sections, destination) => {
+    const last = sections[sections.length - 1];
+    if (last !== undefined && last.label === destination.group) last.rows.push(destination);
+    else sections.push({ label: destination.group, rows: [destination] });
+    return sections;
+  }, []);
   const orderedIds = rowDestinations.flatMap((destination) => {
     const group = groupOf(destination);
     if (group === undefined) return [`view:${destination.id}`];
@@ -371,11 +373,13 @@ export function ProjectSidebar(props: {
         className="studio-project-views"
         aria-label={activeProject === undefined ? t("sidebar.configuredViewsAria") : t("sidebar.viewsAria", { label: activeProject.label })}
       >
-        <h2>{t("sidebar.views")}</h2>
-        {rowDestinations.map((destination) => {
-          const group = groupOf(destination);
-          return group === undefined ? renderView(destination) : renderGroup(group, destination);
-        })}
+        {navSections.map((section) => <div className="studio-nav-section" key={section.label}>
+          <h2 className="studio-nav-section-title">{section.label}</h2>
+          {section.rows.map((destination) => {
+            const group = groupOf(destination);
+            return group === undefined ? renderView(destination) : renderGroup(group, destination);
+          })}
+        </div>)}
       </section>
     </nav>
 
