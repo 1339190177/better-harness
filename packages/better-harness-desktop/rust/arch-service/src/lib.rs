@@ -268,10 +268,15 @@ mod tests {
         assert!(reply["result"]["snapshot"]["model"]["elements"].as_array().unwrap().is_empty());
         assert!(!reply["result"]["dsl"].as_str().unwrap().is_empty());
         // The change overlay reports the impacted paths, so a caller never has
-        // to read a count where the contract promises a list.
-        assert_eq!(
-            reply["result"]["overlay"]["impactedFiles"].as_array().unwrap(),
-            &vec![serde_json::json!("/test.js")]
+        // to read a count where the contract promises a list. Nothing called this
+        // file, so the radius is empty: the changed file is the change, not its
+        // own impact, and naming it here would paint an element the commit
+        // changed as one it only reached.
+        assert!(
+            reply["result"]["overlay"]["impactedFiles"]
+                .as_array()
+                .unwrap()
+                .is_empty()
         );
     }
 

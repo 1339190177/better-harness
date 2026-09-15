@@ -2359,10 +2359,12 @@
 .session-compare-calls summary .session-compare-call-preview { display: block; margin-left: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-code); }
 
 /* ── Impact surface ───────────────────────────────────────────────────── */
-/* A chooser beside the projection it feeds: the diagram needs the pane, so the
-   picker stays one narrow column rather than a second reading pane. */
-.impact-view { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--color-workspace); }
-.impact-picker { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--color-border); background: var(--color-panel); }
+/* A chooser beside the projection it feeds. The surface sizes itself from its
+   own width — not the window's — because a sidebar, a drawer or a resize decides
+   how much room it actually gets, and the chooser must be the first thing to
+   give way when that is not much. */
+.impact-view { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--color-workspace); }
+.impact-picker { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--color-border); background: var(--color-panel); }
 .impact-search { padding: var(--space-sm); border-bottom: 1px solid var(--color-border); }
 .impact-search input { width: 100%; box-sizing: border-box; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font-family: var(--font-ui); font-size: var(--type-meta-size); }
 .impact-commits { flex: 1; min-height: 0; margin: 0; padding: 0; overflow: auto; list-style: none; }
@@ -2373,11 +2375,17 @@
 .impact-commit-subject { overflow: hidden; font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
 .impact-commit-meta { display: flex; gap: var(--space-sm); color: var(--color-text-muted); font-size: 10px; }
 .impact-commit-meta code { font-family: var(--font-code); }
-.impact-projection { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.impact-projection > .arch-pane { flex: 1; min-height: 0; }
+.impact-projection { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 0; }
+.impact-projection > .arch-pane { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; }
 .impact-notice { display: flex; align-items: center; gap: var(--space-sm); margin: 0; padding: var(--space-md); color: var(--color-text-muted); font-size: var(--type-meta-size); }
 .impact-empty { display: grid; place-content: center; justify-items: center; gap: var(--space-sm); flex: 1; color: var(--color-text-muted); }
 .impact-empty p { margin: 0; font-size: var(--type-meta-size); }
+
+/* Stacked when the surface itself is narrow, whatever the window is doing. */
+@container (max-width: 700px) {
+  .impact-view { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 34%) minmax(0, 1fr); }
+  .impact-picker { border-right: none; border-bottom: 1px solid var(--color-border); }
+}
 
 /* The same breakpoint the history workbench stacks at: below it two columns
    leave neither pane enough width to read, so the chooser becomes a strip above
@@ -2388,13 +2396,18 @@
 }
 
 /* ── Architecture Impact Pane ─────────────────────────────────────────── */
-.arch-pane { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; background: var(--color-panel); }
+/* One pane, three rows: a title, a toolbar whose content is a reading rather
+   than a fixed label, and the canvas. The column is bounded so a long path in the
+   toolbar is clipped inside the pane instead of widening it past the surface. */
+.arch-pane { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; background: var(--color-panel); }
 .arch-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
-.arch-header strong { color: var(--color-text); }
-.arch-header span { color: var(--color-text-muted); font-size: var(--type-meta-size); }
-.arch-toolbar { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
-.arch-summary { flex: 1; color: var(--color-text-muted); font-size: var(--type-meta-size); }
-.arch-omitted { color: var(--color-warning); font-size: var(--type-meta-size); }
+.arch-header strong { flex: 0 0 auto; color: var(--color-text); }
+.arch-header span { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--color-text-muted); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
+.arch-toolbar { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); flex-wrap: wrap; min-width: 0; }
+.arch-summary { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--color-text-muted); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
+/* The notice names a file, and a path is as long as it is: it yields width and
+   hints the rest in a tooltip rather than pushing the pane's controls off it. */
+.arch-omitted { flex: 1 1 12ch; min-width: 0; overflow: hidden; color: var(--color-warning); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
 .arch-btn { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-btn:hover { background: var(--color-surface-hover); }
 .arch-canvas { position: relative; overflow: hidden; padding: 0; cursor: grab; }
@@ -2405,7 +2418,7 @@
 .arch-svg [role="button"] { cursor: pointer; }
 .arch-loading { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-lg); color: var(--color-text-muted); }
 .arch-error { padding: var(--space-lg); color: var(--color-danger); }
-.arch-zoom { display: flex; align-items: center; gap: 2px; }
+.arch-zoom { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
 .arch-zoom-level { min-width: 42px; text-align: center; color: var(--color-text-muted); font-size: var(--type-meta-size); font-variant-numeric: tabular-nums; }
 /* A boundary is a container or system, so it reads as a frame its contents sit
    inside rather than as another box beside them. Its colour repeats the state of

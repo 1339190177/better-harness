@@ -97,14 +97,18 @@ replace the Artifact provider lane.
   **refusals with stable codes**, never crashes or partial graphs.
 - **AC-3** `GET /api/git/commits/:sha/architecture` returns one bounded
   `CommitArchitectureImpactV1` for the selected commit: the projection, the
-  change overlay, and the impact radius. When the host is absent or no declared
-  model is discovered, the route answers **unavailable**, not an empty
+  change overlay, and the impact radius. The radius names what the change
+  reached **without landing in it** — a changed file is the change, not its own
+  impact, so a marked element always means a radius. When the host is absent or
+  no declared model is discovered, the route answers **unavailable**, not an empty
   projection a reader would read as "no impact".
 - **AC-4** The projection is a destination of its own in the sidebar's Daily section, next to
   Commits: a commit chooser with search beside it, and the diagram filling the rest of the
   surface at wide, compact and narrow widths, with keyboard focus, bounded overflow, and no
-  console or page errors. Commits keeps history: its detail pane reads files and carries no
-  projection toggle.
+  console or page errors. The reading's own caveats are bounded the same way: the notice that
+  names a file it could not read clips inside the pane it sits in, with the whole path in its
+  tooltip, rather than widening the surface it is the caveat to. Commits keeps history: its
+  detail pane reads files and carries no projection toggle.
 - **AC-5** The pane exports `.dsl` and `.svg` for the current projection, and the
   exported `.dsl` re-parses into the same element and relationship set
   (round-trip asserted on the parsed model, not on emitted text).
@@ -115,7 +119,12 @@ replace the Artifact provider lane.
   It reports configured model evidence only; it never claims runtime use.
 - **AC-7** v1 fact extraction covers JavaScript/TypeScript through OXC. Any other
   language is reported as `unsupported-language` in the diagnostics channel and
-  is **excluded** from the graph rather than partially extracted.
+  is **excluded** from the graph rather than partially extracted. Only source is
+  part of a reading: a changed document, data file, markup, style or asset holds
+  no symbols, so it is neither sent nor reported — calling one "not read" claims
+  a gap in something the projection was never about. A file in the extracted
+  language set that the parser rejects is reported as `unparsed`, kept apart from
+  a language the host does not cover.
 
 ## Non-goals
 
@@ -288,6 +297,22 @@ replace the Artifact provider lane.
   exits during the request. Files in a language v1 does not extract are reported in `omitted`
   with their diagnostics rather than dropped silently.
 
+- AC-3 (Reading scope, task 12/13 in part): `server/architecture-sources.ts` decides which
+  changed files a projection is about — the extensions `arch-core` extracts, plus the source
+  languages v1 does not (still sent, still named) — and nothing else. `test/architecture-impact.test.ts`
+  holds a document and a lockfile out of `sources` while the stub host answers about them, reports
+  only the code it could not read, and splits `unsupported-language` from `unparsed`; the browser
+  spec's notice names a long `.go` path, never the `.md` in the same commit, stays on one line
+  inside its pane at 1280/900/600px with the whole path in its tooltip, and keeps a legible fit
+  there. Over this repository, `765c6c9c` (four `package.json`/lockfiles) now reads `no-impact`
+  with **no** omissions and no reached elements, where it used to name four files and two elements.
+- AC-3 (Radius): `compute_change_overlay` no longer seeds `impacted_files` with the changed paths.
+  A changed file is the change, not its own impact: for `765c6c9c` the reading used to answer
+  `impactedHitIds: ["harness-studio", "documentation"]` beside `changedSymbols: 0`, painting two
+  elements as reached on a commit with no impact at all. The radius now names only caller files,
+  which is what the pane's third state means; on a large commit it can be empty because the
+  callers live in elements the commit also changed (the coarse-binding limit below).
+
 - AC-4 (Surface): the projection moved out of the commit workbench into `ImpactView.tsx` on its
   own route (`#/impact`), a sidebar row with an icon, and a capability line of its own
   (`architectureImpactEnabled`); `GitHistoryView` lost the toggle and the pane. The browser spec
@@ -298,9 +323,10 @@ replace the Artifact provider lane.
 
 ### Verified by
 
-- `npx vitest run` in `packages/harness-studio` (90 files, 707 tests), including the new
+- `npx vitest run` in `packages/harness-studio` (90 files, 711 tests), including the new
   `test/architecture-impact.test.ts`: host-absent `unavailable`, provider mapping and refusal
-  classification, cache reuse, and a failed host reported as `unavailable` with its reason.
+  classification, cache reuse, a failed host reported as `unavailable` with its reason, and the
+  reading's own scope over documents, lockfiles, unread languages and unparseable files.
 - `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
   commit read through the real provider over both `stdio` and the macOS NSXPC bridge, publishing
   a declared model and asserting the projection comes back with that element marked changed.
@@ -332,6 +358,11 @@ replace the Artifact provider lane.
   can be empty on a large commit even when the symbol counts show a real radius.
 - The diagram is drawn into the pane rather than opened larger; a dedicated expanded surface is
   the next step if a reader needs the picture beyond a docked pane's height.
+- The projection speaks English only. The surface's shell is localized (`area.impact`, the
+  capability line, the commit chooser's labels), while the pane's own copy — its title, summary,
+  zoom controls, element card and omission notice — is hardcoded. Localizing it is mechanical but
+  touches every string in `ArchitectureImpactView.tsx`, and the browser spec asserts those
+  strings, so it is a change of its own.
 - Authoring a model is content, not code: this repository ships one under
   `.better-harness/architecture/` so its own commits can be read in the pane.
 
@@ -351,7 +382,11 @@ replace the Artifact provider lane.
   re-apply a second one.
 - **Decision**: v1 is JavaScript/TypeScript through OXC. This is the language set
   `blast-radius` covers best and the one Studio edits most; the cost is honest
-  `unsupported-language` diagnostics for everything else.
+  `unsupported-language` diagnostics for every other **source** language, and
+  silence for the files a projection is not about. A reading of a commit that only
+  touched documents or lockfiles answers `no-impact` with nothing omitted, rather
+  than listing prose as a gap and making a reader hunt for an impact that was
+  never there.
 - **Decision (superseded)**: the fourth pane attaches to the commit workbench, not to the
   Artifacts workspace. The reader's question is about the commit they selected. **Superseded by
   the Impact surface**: the question is still about a commit, but a projection that shares a

@@ -41,7 +41,19 @@ const OMISSION_REASON: Record<ArchitectureImpact["omitted"][number]["reason"], s
   "request-budget": "past the request budget",
   "import-hop": "past the one-hop neighbourhood",
   "unsupported-language": "in a language the host does not extract",
+  "unparsed": "which the host could not parse",
 };
+
+/**
+ * One omission as the notice prints it. The groups are joined into one line that
+ * the toolbar clips and hints, so the path a reader needs is in the tooltip
+ * rather than in a width the pane does not have.
+ */
+function omissionNotice(omitted: ArchitectureImpact["omitted"]): string {
+  return omitted
+    .map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${OMISSION_REASON[omission.reason]}: ${omission.examplePath})`)
+    .join("; ");
+}
 
 /** A leaf is one drawn element; a boundary is one element that contains others. */
 const LEAF_W = 176;
@@ -57,6 +69,12 @@ const MAX_ROW_W = 1180;
 const ZOOM_STEP = 1.25;
 const MAX_SCALE = 4;
 const MIN_SCALE = 0.15;
+/**
+ * A fit below this is a thumbnail, not a diagram: the pane shows the corner of
+ * the picture at a legible scale and the reader pans, instead of shrinking a
+ * model until its labels cannot be read.
+ */
+const MIN_LEGIBLE_SCALE = 0.5;
 const POPUP_W = 296;
 
 export function ArchitectureImpactView({ sha, label }: Props) {
@@ -179,6 +197,7 @@ export function ArchitectureImpactView({ sha, label }: Props) {
   const fit = fitView(pane, diagram);
   const shown = view ?? fit;
   const selectedNode = selected === null ? undefined : nodesById.get(selected);
+  const notice = omissionNotice(data.omitted);
 
   /** Zoom about a point in the pane, so the element under the pointer stays put. */
   function zoomAbout(px: number, py: number, factor: number): void {
@@ -242,12 +261,10 @@ export function ArchitectureImpactView({ sha, label }: Props) {
             ? `${data.overlay.changedSymbols} changed symbols, ${data.overlay.impactedSymbols} impacted${data.impactedHitIds.length > 0 ? `, ${data.impactedHitIds.length} elements reached` : ""}`
             : "No architecture impact detected"}
         </span>
-        {data.omitted.length > 0 && (
+        {notice !== "" && (
           // A projection that stays quiet about the files it skipped reads as
           // "nothing there", which is the one thing it must never imply.
-          <span className="arch-omitted">
-            {data.omitted.map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${OMISSION_REASON[omission.reason]}: ${omission.examplePath})`).join("; ")}
-          </span>
+          <span className="arch-omitted" title={notice}>{notice}</span>
         )}
         <span className="arch-zoom" role="group" aria-label="Diagram zoom">
           <button type="button" className="arch-btn" onClick={() => zoomBy(1 / ZOOM_STEP)} aria-label="Zoom out">−</button>
@@ -480,8 +497,13 @@ function screenBox(box: DiagramBox, view: View): DiagramBox {
 
 function fitView(pane: { w: number; h: number }, diagram: { width: number; height: number }): View {
   if (pane.w === 0 || pane.h === 0 || diagram.width === 0) return { scale: 1, x: 0, y: 0 };
-  const scale = clamp(Math.min((pane.w - 8) / diagram.width, (pane.h - 8) / diagram.height), MIN_SCALE, 1.5);
-  return { scale, x: (pane.w - diagram.width * scale) / 2, y: (pane.h - diagram.height * scale) / 2 };
+  const wanted = Math.min((pane.w - 8) / diagram.width, (pane.h - 8) / diagram.height, 1.5);
+  if (wanted >= MIN_LEGIBLE_SCALE) {
+    return { scale: wanted, x: (pane.w - diagram.width * wanted) / 2, y: (pane.h - diagram.height * wanted) / 2 };
+  }
+  // Anchored at the diagram's own origin, so the picture opens on its roots
+  // rather than on whatever happens to sit at its middle.
+  return { scale: MIN_LEGIBLE_SCALE, x: 8, y: 8 };
 }
 
 function clamp(value: number, low: number, high: number): number {

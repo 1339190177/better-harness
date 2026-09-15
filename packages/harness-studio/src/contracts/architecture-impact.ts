@@ -30,6 +30,8 @@ export interface ArchitectureRelationship {
 export interface ArchitectureOverlay {
   changedSymbols: number;
   impactedSymbols: number;
+  /** Paths the change reached without landing in them; a changed file is not one
+   * of them, so a marked element means a radius rather than the change itself. */
   impactedFiles: string[];
 }
 
@@ -38,12 +40,15 @@ export interface ArchitectureOverlay {
  *
  * A projection is only honest if it says what it did not look at, so an omitted
  * file is reported rather than read as empty or allowed to void the reading.
+ * What a projection is not about — a document, data, markup, an asset — is a
+ * different matter: it holds no symbols, so it is no part of the reading.
  */
 export interface ArchitectureOmission {
   count: number;
   /** Over the host's per-file bound, past this reading's request budget, past
-   * the one-hop neighbourhood, or a language the host cannot extract. */
-  reason: "too-large" | "request-budget" | "import-hop" | "unsupported-language";
+   * the one-hop neighbourhood, in a source language the host does not extract,
+   * or in the extracted language set but rejected by the parser. */
+  reason: "too-large" | "request-budget" | "import-hop" | "unsupported-language" | "unparsed";
   /** One path from the group, so a reader can act on it. */
   examplePath: string;
 }
@@ -55,7 +60,7 @@ export interface ArchitectureOmission {
  * gets to make about its own output.
  */
 export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted"> & {
-  /** Files the host could not extract facts from, which the reading reports. */
+  /** Source files the host could not extract facts from, which the reading reports. */
   skipped: Array<{ path: string; diagnostics: string[] }>;
 };
 

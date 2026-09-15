@@ -9,6 +9,7 @@ import type { GitCommitDetail } from "../contracts/git-history.js";
 import type { ArchitectureImpact, ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
 import { discoverDeclaredModel } from "./architecture-model.js";
 import { selectImportHop } from "./architecture-hop.js";
+import { isExtractable, isSourceLike } from "./architecture-sources.js";
 import { GitHistoryError, readGitRevisionFile } from "./git-history.js";
 
 /**
@@ -63,13 +64,18 @@ export async function readCommitArchitectureImpact(
 
   // Collect changed file sources. A file this reading cannot include is left out
   // and reported, never read as empty and never allowed to void the whole commit:
-  // one large lockfile must not cost a reader the reading of every other file.
+  // one oversized source must not cost a reader the reading of every other file.
+  // A file the projection is not about — a document, data, markup, an asset — is
+  // not collected at all: it holds no symbols, so reading it would only spend the
+  // budget the code half of the commit needs and come back as an omission notice
+  // about a file that was never part of the answer.
   const sources: Array<{ path: string; source: string }> = [];
   const tooLarge: string[] = [];
   const overBudget: string[] = [];
   let budget = MAX_SOURCES_BYTES;
   for (const file of detail.files) {
     if (!READABLE_STATUSES.has(file.status)) continue;
+    if (!isSourceLike(file.path)) continue;
     if (sources.length >= MAX_FILE_COUNT) { overBudget.push(file.path); continue; }
     const read = await readChangedSource(repoRoot, sha, file.path);
     if ("omitted" in read) { tooLarge.push(file.path); continue; }
@@ -109,6 +115,16 @@ export async function readCommitArchitectureImpact(
     bindings,
   });
 
+  // What the host could not read, split by what the reader can do about it. A
+  // file in a language v1 does not extract is a named gap; a file the parser
+  // rejected is a defect in the file, not in the coverage, and saying which is
+  // which is the difference between a caveat and a false alarm. A path that the
+  // projection is not about is never an omission, whatever a host answers about
+  // it.
+  const unread = raw.skipped.filter((skip) => isSourceLike(skip.path));
+  const unsupported = unread.filter((skip) => !isExtractable(skip.path)).map((skip) => skip.path);
+  const unparsed = unread.filter((skip) => isExtractable(skip.path)).map((skip) => skip.path);
+
   const result: ArchitectureImpact = {
     kind: "CommitArchitectureImpactV1",
     sha,
@@ -125,7 +141,8 @@ export async function readCommitArchitectureImpact(
       ...(tooLarge.length === 0 ? [] : [{ count: tooLarge.length, reason: "too-large" as const, examplePath: tooLarge[0]! }]),
       ...(overBudget.length === 0 ? [] : [{ count: overBudget.length, reason: "request-budget" as const, examplePath: overBudget[0]! }]),
       ...(hop.truncated === 0 ? [] : [{ count: hop.truncated, reason: "import-hop" as const, examplePath: hop.firstDropped }]),
-      ...(raw.skipped.length === 0 ? [] : [{ count: raw.skipped.length, reason: "unsupported-language" as const, examplePath: raw.skipped[0]!.path }]),
+      ...(unsupported.length === 0 ? [] : [{ count: unsupported.length, reason: "unsupported-language" as const, examplePath: unsupported[0]! }]),
+      ...(unparsed.length === 0 ? [] : [{ count: unparsed.length, reason: "unparsed" as const, examplePath: unparsed[0]! }]),
     ],
   };
 

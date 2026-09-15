@@ -16,6 +16,10 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 let studio;
 let workspace;
 let newest;
+/** The changed path in a language the host cannot extract, long enough to matter. */
+const unread = "tools/archprobe/AnalysisProbeTargetWithARemarkablyLongUnbrokenName.go";
+/** A changed document, which the projection is not about. */
+const documentPath = "docs/specs/2026-09-14-commit-architecture-impact.md";
 /** The changed paths the surface asked about, in the order it asked. */
 const projected = [];
 
@@ -45,7 +49,13 @@ test.beforeAll(async () => {
     { path_glob: "store/caller.ts", element_id: "caller" },
   ]), "utf8");
   await writeFile(join(workspace, "store", "index.ts"), "export function load(): number {\n  return 2;\n}\n", "utf8");
-  git("add", "store/index.ts");
+  // The same commit moves code this projection cannot extract and a document it is
+  // not about, so the surface has both kinds of file in front of it.
+  await mkdir(join(workspace, "tools", "archprobe"), { recursive: true });
+  await mkdir(join(workspace, "docs", "specs"), { recursive: true });
+  await writeFile(join(workspace, unread), "package main\n", "utf8");
+  await writeFile(join(workspace, documentPath), "# Impact\n", "utf8");
+  git("add", "store/index.ts", unread, documentPath);
   git("commit", "-m", "feat: read two");
   newest = git("rev-parse", "--short", "HEAD");
 
@@ -69,7 +79,13 @@ test.beforeAll(async () => {
           impactedHitIds: ["caller"],
           overlay: { changedSymbols: 2, impactedSymbols: 1, impactedFiles: ["store/index.ts"] },
           dsl: "workspace \"Impact fixture\" {}\n",
-          skipped: [],
+          // What the host answers: the Go file it was handed and could not read,
+          // and a document it was never handed at all. The first is a named gap
+          // in the projection, the second is not part of the reading.
+          skipped: [
+            { path: unread, diagnostics: [`unsupported language for ${unread}`] },
+            { path: documentPath, diagnostics: [`unsupported language for ${documentPath}`] },
+          ],
         };
       },
     },
@@ -135,4 +151,99 @@ test("stacks the chooser over the projection when narrow", async ({ page }) => {
   await expect(page.locator(".impact-view")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => getComputedStyle(document.querySelector(".impact-view")).gridTemplateRows.split(" ").length > 1)).toBe(true);
+});
+
+/**
+ * A window can be wide or narrow, and a docked sidebar decides what the surface
+ * actually gets. Neither may leave the projection starved or the diagram
+ * shrunk past reading: the chooser yields width first, the columns partition the
+ * surface exactly, and the fit stops at a legible scale rather than shrinking
+ * into a thumbnail.
+ */
+test("keeps the projection readable at every width the surface can take", async ({ page }) => {
+  const measured = [];
+  for (const width of [1600, 1280, 1100, 900, 760, 600, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${studio.url}/#/impact`);
+    await expect(page.locator(".arch-canvas")).toBeVisible();
+    measured.push(await page.evaluate(() => {
+      const width = (selector) => Math.round(document.querySelector(selector)?.getBoundingClientRect().width ?? -1);
+      const level = document.querySelector(".arch-zoom-level")?.textContent ?? "";
+      return {
+        surface: width(".impact-view"),
+        picker: width(".impact-picker"),
+        projection: width(".impact-projection"),
+        pane: width(".arch-pane"),
+        zoom: Number.parseInt(level, 10),
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    }));
+  }
+
+  for (const row of measured) {
+    expect(row.pageOverflow, `page overflow at ${row.surface}px`).toBe(false);
+    // The chooser yields width before the projection does: side by side the two
+    // columns are the whole surface, and stacked each takes all of it — the
+    // surface is never left with dead width beside a starved pane.
+    if (row.picker === row.surface) expect(row.projection, `stacked at ${row.surface}px`).toBe(row.surface);
+    else expect(row.picker + row.projection, `columns at ${row.surface}px`).toBe(row.surface);
+    expect(row.pane, `projection at ${row.surface}px`).toBe(row.projection);
+    // A fit below this is a thumbnail; the pane pans a legible picture instead.
+    expect(row.zoom, `zoom at ${row.surface}px`).toBeGreaterThanOrEqual(50);
+  }
+});
+
+/**
+ * The notice is the one place a reading admits what it could not read, and it
+ * prints a path the surface does not control: a document is not part of the
+ * reading at all, and a path that does not fit is clipped inside the pane it sits
+ * in — with the whole of it in the tooltip — rather than widening the surface it
+ * is the caveat to.
+ */
+test("names the code it could not read, never the documents, inside the pane it has", async ({ page }) => {
+  const measured = [];
+  for (const width of [1280, 900, 600]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${studio.url}/#/impact`);
+    await expect(page.locator(".arch-canvas")).toBeVisible();
+    await expect(page.locator(".arch-omitted")).toHaveCount(1);
+    measured.push(await page.evaluate(() => {
+      const box = (selector) => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { right: Math.round(rect.right), width: Math.round(rect.width), height: Math.round(rect.height) };
+      };
+      const notice = document.querySelector(".arch-omitted");
+      const level = document.querySelector(".arch-zoom-level")?.textContent ?? "";
+      return {
+        width: window.innerWidth,
+        pane: box(".arch-pane"),
+        notice: box(".arch-omitted"),
+        // Clipped means the path is cut off in the pane rather than fitted into it.
+        clipped: notice.scrollWidth > notice.clientWidth,
+        // One line means the notice never grows into the canvas's height either.
+        oneLine: notice.scrollHeight <= notice.clientHeight + 1,
+        text: notice.textContent,
+        title: notice.getAttribute("title"),
+        zoom: Number.parseInt(level, 10),
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    }));
+  }
+
+  const [widest] = measured;
+  expect(widest.text).toContain(unread);
+  expect(widest.text).not.toContain(".md");
+  expect(widest.title).toContain(unread);
+  expect(widest.title).toContain("a language the host does not extract");
+
+  for (const row of measured) {
+    expect(row.pageOverflow, `page overflow at ${row.width}px`).toBe(false);
+    expect(row.notice.right, `notice inside its pane at ${row.width}px`).toBeLessThanOrEqual(row.pane.right + 1);
+    expect(row.notice.width, `notice width at ${row.width}px`).toBeLessThanOrEqual(row.pane.width);
+    expect(row.oneLine, `notice on one line at ${row.width}px`).toBe(true);
+    // The toolbar wrapping round a long notice may not eat the diagram.
+    expect(row.zoom, `zoom at ${row.width}px`).toBeGreaterThanOrEqual(50);
+  }
+  // In the narrowest pane the path cannot fit, and it is the notice that gives way.
+  expect(measured.at(-1).clipped).toBe(true);
 });

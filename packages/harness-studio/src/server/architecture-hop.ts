@@ -12,9 +12,8 @@
  * reports what it left out rather than silently narrowing the radius.
  */
 import { posix } from "node:path";
+import { isExtractable } from "./architecture-sources.js";
 
-/** Only what the host extracts facts for; other languages would be diagnostics. */
-const PARSEABLE = /\.(?:[cm]?[jt]sx?)$/u;
 /** Bounded so one hop cannot cost more than the reading it explains. */
 export const MAX_HOP_FILES = 200;
 
@@ -34,7 +33,9 @@ export function selectImportHop(
 ): ImportHop {
   const byDirectory = new Map<string, string[]>();
   for (const path of trackedPaths) {
-    if (!PARSEABLE.test(path)) continue;
+    // Only what the host extracts: a neighbour it could only report as unread
+    // would cost the reading without ever being able to answer it.
+    if (!isExtractable(path)) continue;
     const directory = posix.dirname(path);
     const bucket = byDirectory.get(directory);
     if (bucket === undefined) byDirectory.set(directory, [path]);

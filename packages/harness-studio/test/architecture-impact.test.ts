@@ -7,6 +7,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { isArchitectureImpact, type ArchitectureImpactProvider, type ArchitectureImpactReading } from "../src/contracts/architecture-impact.js";
 import { MAX_HOP_FILES, selectImportHop } from "../src/server/architecture-hop.js";
+import { isExtractable, isSourceLike } from "../src/server/architecture-sources.js";
 import { startHarnessStudioServer, type StartedHarnessStudioServer } from "../src/server/server.js";
 import {
   ARCH_HOST_PROTOCOL_VERSION,
@@ -100,24 +101,42 @@ function readingStub(overrides: Partial<ArchitectureImpactReading> = {}): Archit
   };
 }
 
-function recordingProvider(result: () => unknown): ArchitectureImpactProvider & { calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }>; modelJson: unknown; bindings: Array<{ pathGlob: string; elementId: string }> }> } {
-  const calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }>; modelJson: unknown; bindings: Array<{ pathGlob: string; elementId: string }> }> = [];
+/** One provider call, recorded so a test can assert what the host was handed. */
+interface ProviderCall {
+  trackedPaths: string[];
+  changedPaths: string[];
+  sources: Array<{ path: string }>;
+  modelJson: unknown;
+  bindings: Array<{ pathGlob: string; elementId: string }>;
+}
+
+function recordingProvider(result: (call: ProviderCall) => unknown): ArchitectureImpactProvider & { calls: ProviderCall[] } {
+  const calls: ProviderCall[] = [];
   return {
     calls,
     async architectureImpact(params) {
-      calls.push({
+      const call: ProviderCall = {
         trackedPaths: [...params.trackedPaths],
         changedPaths: [...params.changedPaths],
         sources: params.sources.map(({ path }) => ({ path })),
         modelJson: params.modelJson,
         bindings: [...params.bindings],
-      });
+      };
+      calls.push(call);
       // A provider always answers with the files it could not extract, so a stub
       // has to as well or it is not answering the question that was asked.
-      return { skipped: [], ...(result() as Partial<ArchitectureImpactReading>) } as ArchitectureImpactReading;
+      return { skipped: [], ...(result(call) as Partial<ArchitectureImpactReading>) } as ArchitectureImpactReading;
     },
   };
 }
+
+/** The paths a stub host could not extract, from the sources it was handed. */
+function unreadByHost(sources: Array<{ path: string }>): Array<{ path: string; diagnostics: string[] }> {
+  return sources
+    .filter(({ path }) => !isExtractable(path))
+    .map(({ path }) => ({ path, diagnostics: [`unsupported language for ${path}`] }));
+}
+
 describe("import hop", () => {
   it("offers the neighbours a relative import can reach, never the change itself", () => {
     const hop = selectImportHop(
@@ -141,6 +160,23 @@ describe("import hop", () => {
     expect(hop.candidates).toHaveLength(MAX_HOP_FILES);
     expect(hop.truncated).toBe(5);
     expect(hop.firstDropped).toBe(`src/m${String(MAX_HOP_FILES).padStart(3, "0")}.ts`);
+  });
+});
+
+describe("source scope", () => {
+  it("keeps documents, data, markup, styles and assets out of the reading", () => {
+    for (const path of ["docs/notes.md", "package.json", "index.html", "app.css", "logo.svg", "Cargo.lock", "Makefile", ".babelrc"]) {
+      expect(isSourceLike(path), path).toBe(false);
+    }
+  });
+
+  it("keeps code in a language the host does not extract in it", () => {
+    for (const path of ["probe.go", "src/app.py", "lib.rs", "script.sh", "App.vue"]) {
+      expect(isSourceLike(path), path).toBe(true);
+      expect(isExtractable(path), path).toBe(false);
+    }
+    expect(isSourceLike("store/index.ts")).toBe(true);
+    expect(isExtractable("store/index.ts")).toBe(true);
   });
 });
 
@@ -261,17 +297,17 @@ describe("arch.snapshot route", () => {
     const fixture = await openFixture(provider);
     // Larger than the arch host's own per-file bound, so the file is left out of
     // the reading — named, but not allowed to cost the reader every other file.
-    await writeFile(join(fixture.path, "bulk.json"), `{"bulk": "${"x".repeat(520_000)}"}\n`, "utf8");
+    await writeFile(join(fixture.path, "bulk.ts"), `export const bulk = "${"x".repeat(520_000)}";\n`, "utf8");
     await writeFile(join(fixture.path, "greeting.ts"), "export const greeting = \"third\";\n", "utf8");
     // Stage only this commit's files: the declared model is worktree state and
     // belongs to no commit under test.
-    git(fixture.path, "add", "bulk.json", "greeting.ts");
+    git(fixture.path, "add", "bulk.ts", "greeting.ts");
     git(fixture.path, "commit", "-m", "feat: add bulk beside a change");
     const sha = git(fixture.path, "rev-parse", "HEAD");
 
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
     expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", sha, status: "impact" });
-    expect(payload.omitted).toEqual([{ count: 1, reason: "too-large", examplePath: "bulk.json" }]);
+    expect(payload.omitted).toEqual([{ count: 1, reason: "too-large", examplePath: "bulk.ts" }]);
     // The unreadable file is not sent as an empty source, and the commit's other
     // changed file is still read — as is the neighbour the hop adds.
     expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts", "caller.ts"]);
@@ -296,6 +332,63 @@ describe("arch.snapshot route", () => {
     // Six changed files fit the budget and the seventh does not; the hop's two
     // neighbours cost so little that they still fit after them.
     expect(provider.calls[0]!.sources).toHaveLength(8);
+  });
+
+  it("keeps documents out of the reading instead of naming them unread", async () => {
+    // The host reports whatever it was handed and could not extract, so a document
+    // that reaches it comes back as an omission: the reading has to keep its own
+    // scope rather than pass prose through to the notice.
+    const provider = recordingProvider((call) => ({ ...(snapshotResult() as object), skipped: unreadByHost(call.sources) }));
+    const fixture = await openFixture(provider);
+    await mkdir(join(fixture.path, "docs", "specs"), { recursive: true });
+    await writeFile(join(fixture.path, "docs", "specs", "notes.md"), "# Notes\n", "utf8");
+    await writeFile(join(fixture.path, "Cargo.lock"), "version = 4\n", "utf8");
+    await writeFile(join(fixture.path, "greeting.ts"), "export const greeting = \"documented\";\n", "utf8");
+    git(fixture.path, "add", "docs/specs/notes.md", "Cargo.lock", "greeting.ts");
+    git(fixture.path, "commit", "-m", "feat: document the greeting");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    expect(payload.omitted).toEqual([]);
+    // Nothing that carries no symbols is read or sent: the budget belongs to the
+    // code half of the commit.
+    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts", "caller.ts"]);
+  });
+
+  it("names the code it could not read, apart from a file the parser rejected", async () => {
+    const provider = recordingProvider(() => ({
+      ...(snapshotResult() as object),
+      // A host that answers about a document is not the authority on what the
+      // reading is about, and "could not parse" is not "cannot read this
+      // language": the two are different promises to the reader.
+      skipped: [
+        { path: "tools/archprobe/probe.go", diagnostics: ["unsupported language for tools/archprobe/probe.go"] },
+        { path: "store/broken.ts", diagnostics: ["line 1: Unexpected token"] },
+        { path: "docs/specs/notes.md", diagnostics: ["unsupported language for docs/specs/notes.md"] },
+      ],
+    }));
+    const fixture = await openFixture(provider);
+    await mkdir(join(fixture.path, "tools", "archprobe"), { recursive: true });
+    await mkdir(join(fixture.path, "store"), { recursive: true });
+    await mkdir(join(fixture.path, "docs", "specs"), { recursive: true });
+    await writeFile(join(fixture.path, "tools", "archprobe", "probe.go"), "package main\n", "utf8");
+    await writeFile(join(fixture.path, "store", "broken.ts"), "export const = ;\n", "utf8");
+    await writeFile(join(fixture.path, "docs", "specs", "notes.md"), "# Notes\n", "utf8");
+    git(fixture.path, "add", "tools/archprobe/probe.go", "store/broken.ts", "docs/specs/notes.md");
+    git(fixture.path, "commit", "-m", "feat: probe the store from Go");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    expect(payload.omitted).toEqual([
+      { count: 1, reason: "unsupported-language", examplePath: "tools/archprobe/probe.go" },
+      { count: 1, reason: "unparsed", examplePath: "store/broken.ts" },
+    ]);
+    // Code the host cannot read is still sent: that notice is what tells a reader
+    // the projection is incomplete there.
+    const sent = provider.calls[0]!.sources.map(({ path }) => path);
+    expect(sent).toContain("tools/archprobe/probe.go");
+    expect(sent).toContain("store/broken.ts");
+    expect(sent).not.toContain("docs/specs/notes.md");
   });
 });
 

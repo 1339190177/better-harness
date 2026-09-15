@@ -428,15 +428,19 @@ fn prioritize_facts<'a>(
 // Change overlay
 // ---------------------------------------------------------------------------
 
-/// Map changed files to overlapping symbols.
+/// Map changed files to overlapping symbols, and to what the change reached.
+///
+/// `impacted_files` names the files the change reached **without landing in
+/// them**: a changed file is not its own impact, and a reader that takes one for
+/// the other marks an element the commit changed as a radius hit — or claims a
+/// radius for a commit that has nothing parseable in it at all.
 pub fn compute_change_overlay(
     changed_paths: &[String],
     graph: &CodeGraph,
 ) -> ChangeOverlay {
     let mut changed_symbols = Vec::new();
     let mut impacted_set: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut affected_files: std::collections::HashSet<String> =
-        changed_paths.iter().cloned().collect();
+    let mut impacted_files: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for path in changed_paths {
         if let Some(symbols) = graph.symbols_by_file.get(path) {
@@ -446,7 +450,7 @@ pub fn compute_change_overlay(
                     for caller in callers {
                         impacted_set.insert(caller.clone());
                         if let Some(caller_symbol) = graph.symbol_by_id.get(caller) {
-                            affected_files.insert(caller_symbol.file_path.clone());
+                            impacted_files.insert(caller_symbol.file_path.clone());
                         }
                     }
                 }
@@ -463,6 +467,6 @@ pub fn compute_change_overlay(
     ChangeOverlay {
         changed_symbols,
         impacted_symbols,
-        impacted_files: affected_files.into_iter().collect(),
+        impacted_files: impacted_files.into_iter().collect(),
     }
 }
