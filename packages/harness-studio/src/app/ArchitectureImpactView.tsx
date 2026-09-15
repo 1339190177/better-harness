@@ -145,6 +145,13 @@ export function ArchitectureImpactView({ sha }: Props) {
             ? `${data.overlay.changedSymbols} changed symbols, ${data.overlay.impactedSymbols} impacted`
             : "No architecture impact detected"}
         </span>
+        {data.omitted.length > 0 && (
+          // A projection that stays quiet about the files it skipped reads as
+          // "nothing there", which is the one thing it must never imply.
+          <span className="arch-omitted">
+            {data.omitted.map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${omission.reason === "too-large" ? "over the per-file bound" : "past the request budget"}: ${omission.examplePath})`).join("; ")}
+          </span>
+        )}
         {data.dsl && <button type="button" className="arch-btn" onClick={exportDsl}>Export .dsl</button>}
         <button type="button" className="arch-btn" onClick={exportSvg}>Export .svg</button>
       </div>

@@ -115,6 +115,7 @@ describe("arch.snapshot route", () => {
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
 
     expect(payload).toMatchObject({ status: "impact", sha: fixture.sha, dsl: (snapshotResult() as { dsl: string }).dsl });
+    expect(payload.omitted).toEqual([]);
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]!.changedPaths).toEqual(["greeting.ts"]);
     expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts"]);
@@ -149,20 +150,42 @@ describe("arch.snapshot route", () => {
     expect(await response.json()).toMatchObject({ status: "unavailable", error: "Arch host arch.snapshot timed out." });
   });
 
-  it("reports a changed file it refuses to read as unavailable, naming the file", async () => {
-    const fixture = await openFixture(recordingProvider(() => snapshotResult()));
-    // Larger than the arch host's own per-file bound, so the read is refused
-    // rather than truncated into a source the facts layer would misread.
-    await writeFile(join(fixture.path, "bulk.ts"), `export const bulk = "${"x".repeat(520_000)}";\n`, "utf8");
+  it("reads the commit around a file it refuses to read, reporting the omission", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider);
+    // Larger than the arch host's own per-file bound, so the file is left out of
+    // the reading — named, but not allowed to cost the reader every other file.
+    await writeFile(join(fixture.path, "bulk.json"), `{"bulk": "${"x".repeat(520_000)}"}\n`, "utf8");
+    await writeFile(join(fixture.path, "greeting.ts"), "export const greeting = \"third\";\n", "utf8");
     git(fixture.path, "add", ".");
-    git(fixture.path, "commit", "-m", "feat: add bulk");
+    git(fixture.path, "commit", "-m", "feat: add bulk beside a change");
     const sha = git(fixture.path, "rev-parse", "HEAD");
 
-    const response = await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`);
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-    expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", sha, status: "unavailable" });
-    expect(payload.error).toContain("bulk.ts");
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", sha, status: "impact" });
+    expect(payload.omitted).toEqual([{ count: 1, reason: "too-large", examplePath: "bulk.json" }]);
+    // The unreadable file is not sent as an empty source, and the commit's other
+    // changed file is still read.
+    expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts"]);
+  });
+
+  it("reports a commit past the request budget instead of failing it", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider);
+    // Eight 500 KB sources: under the per-file bound, over the 3 MiB budget the
+    // reading keeps under the host's 4 MiB frame limit.
+    for (let index = 0; index < 8; index += 1) {
+      await writeFile(join(fixture.path, `budget-${index}.ts`), `export const value${index} = "${"y".repeat(500_000)}";\n`, "utf8");
+    }
+    git(fixture.path, "add", ".");
+    git(fixture.path, "commit", "-m", "feat: add bulky modules");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    expect(payload.status).toBe("impact");
+    expect(payload.omitted).toHaveLength(1);
+    expect(payload.omitted[0]).toMatchObject({ reason: "request-budget", count: 2 });
+    expect(provider.calls[0]!.sources).toHaveLength(6);
   });
 });
 

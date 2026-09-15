@@ -145,6 +145,7 @@ function unavailableImpact(sha: string, message: string): ArchitectureImpact {
     changedHitIds: [],
     overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
     dsl: "",
+    omitted: [],
     error: message,
   };
 }

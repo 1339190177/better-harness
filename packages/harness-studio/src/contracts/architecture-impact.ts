@@ -34,11 +34,26 @@ export interface ArchitectureOverlay {
 }
 
 /**
- * What a host must produce. The server owns `kind`, `sha` and `status`: the
- * commit under review and whether the change reached the model are facts about
- * the request, not claims a provider gets to make about its own output.
+ * Changed files a reading could not include, and why.
+ *
+ * A projection is only honest if it says what it did not look at, so an omitted
+ * file is reported rather than read as empty or allowed to void the reading.
  */
-export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error">;
+export interface ArchitectureOmission {
+  count: number;
+  /** Over the host's per-file bound, or past this reading's request budget. */
+  reason: "too-large" | "request-budget";
+  /** One path from the group, so a reader can act on it. */
+  examplePath: string;
+}
+
+/**
+ * What a host must produce. The server owns `kind`, `sha`, `status` and
+ * `omitted`: the commit under review, whether the change reached the model, and
+ * which files were left out are facts about the request, not claims a provider
+ * gets to make about its own output.
+ */
+export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted">;
 
 export interface ArchitectureImpact {
   kind: "CommitArchitectureImpactV1";
@@ -58,6 +73,8 @@ export interface ArchitectureImpact {
   overlay: ArchitectureOverlay;
   /** Structurizr DSL for the projection. */
   dsl: string;
+  /** Changed files this reading left out, grouped by reason. Empty when none. */
+  omitted: ArchitectureOmission[];
   /** Error message when unavailable. */
   error?: string;
 }
@@ -78,5 +95,6 @@ export function isArchitectureImpact(value: unknown): value is ArchitectureImpac
     && ["impact", "no-impact", "unavailable"].includes(candidate.status as string)
     && Array.isArray(candidate.elements)
     && Array.isArray(candidate.relationships)
-    && typeof candidate.dsl === "string";
+    && typeof candidate.dsl === "string"
+    && Array.isArray(candidate.omitted);
 }
