@@ -3,11 +3,13 @@ import { CaretUpDown } from "@phosphor-icons/react/CaretUpDown";
 import { CaretUp } from "@phosphor-icons/react/CaretUp";
 import { CaretDown } from "@phosphor-icons/react/CaretDown";
 import {
+  createSortedRowModel,
   flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
   type ColumnDef,
+  type RowData,
   type SortingState,
 } from "@tanstack/react-table";
 
@@ -37,8 +39,23 @@ export interface DataTableColumnMeta {
   width: string;
 }
 
-export interface DataTableProps<Row> {
-  columns: ColumnDef<Row, never>[];
+/**
+ * TanStack v9 registers behavior per feature set, so the set is declared once
+ * for every Studio pane: sorting is the only feature the shared table offers,
+ * and the `columnMeta` slot is what types `columnDef.meta` as the contract
+ * above instead of an empty, globally merged interface.
+ */
+export const dataTableFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  columnMeta: {} as DataTableColumnMeta,
+});
+
+/** The column definition a pane declares; the feature set belongs to this table. */
+export type DataTableColumnDef<Row extends RowData> = ColumnDef<typeof dataTableFeatures, Row, unknown>;
+
+export interface DataTableProps<Row extends RowData> {
+  columns: DataTableColumnDef<Row>[];
   rows: Row[];
   rowId: (row: Row) => string;
   /** Names the table for assistive technology; panes have no visible caption. */
@@ -55,16 +72,15 @@ export interface DataTableProps<Row> {
   selectedRowId?: string;
 }
 
-export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
+export function DataTable<Row extends RowData>(props: DataTableProps<Row>): React.JSX.Element {
   const [sorting, setSorting] = useState<SortingState>(props.initialSorting ?? []);
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: props.rows,
     columns: props.columns,
     state: { sorting },
     onSortingChange: setSorting,
     getRowId: (row) => props.rowId(row),
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     sortDescFirst: false,
   });
   const headers = table.getHeaderGroups();
@@ -76,11 +92,11 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
   >
     <table className="data-table" aria-label={props.label} style={{ minWidth: props.minWidth }}>
       <colgroup>{table.getAllLeafColumns().map((column) => {
-        const meta = column.columnDef.meta as DataTableColumnMeta | undefined;
+        const meta = column.columnDef.meta;
         return <col key={column.id} style={{ width: meta?.width }} />;
       })}</colgroup>
       <thead>{headers.map((group) => <tr key={group.id}>{group.headers.map((header) => {
-        const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
+        const meta = header.column.columnDef.meta;
         const direction = header.column.getIsSorted();
         const label = flexRender(header.column.columnDef.header, header.getContext());
         return <th
@@ -108,10 +124,12 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
             : label}
         </th>;
       })}</tr>)}</thead>
+      {/* `getAllCells` rather than `getVisibleCells`: the feature set above does
+          not register column visibility, so every column is a visible one. */}
       <tbody>{rows.length === 0 && props.emptyMessage !== undefined
         ? <tr className="data-table-empty"><td colSpan={table.getAllLeafColumns().length}>{props.emptyMessage}</td></tr>
-        : rows.map((row) => <tr key={row.id} aria-selected={props.onSelectRow === undefined ? undefined : props.selectedRowId === row.id} onClick={props.onSelectRow === undefined ? undefined : () => props.onSelectRow?.(row.original)}>{row.getVisibleCells().map((cell) => {
-          const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+        : rows.map((row) => <tr key={row.id} aria-selected={props.onSelectRow === undefined ? undefined : props.selectedRowId === row.id} onClick={props.onSelectRow === undefined ? undefined : () => props.onSelectRow?.(row.original)}>{row.getAllCells().map((cell) => {
+          const meta = cell.column.columnDef.meta;
           // Every column here clips, so a plain text value carries its full form
           // on hover. Cells that render their own markup own their own title.
           const value = cell.getValue();

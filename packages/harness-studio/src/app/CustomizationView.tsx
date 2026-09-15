@@ -4,11 +4,10 @@ import { ArrowClockwise } from "@phosphor-icons/react/ArrowClockwise";
 import { MagnifyingGlass } from "@phosphor-icons/react/MagnifyingGlass";
 import { Robot } from "@phosphor-icons/react/Robot";
 import { Users } from "@phosphor-icons/react/Users";
-import type { ColumnDef } from "@tanstack/react-table";
 import type { CustomizationAnalysisResponseV1 } from "@qoder-ai/harness/customization";
 import type { CustomizationUsageV1 } from "../contracts/customization-usage.js";
 import { FacetNavigation } from "./shell/FacetNavigation.js";
-import { DataTable } from "./shell/DataTable.js";
+import { DataTable, type DataTableColumnDef } from "./shell/DataTable.js";
 import { PaneSash } from "./shell/PaneSash.js";
 import { ToolbarActions } from "./shell/ToolbarActions.js";
 import {
@@ -126,7 +125,7 @@ export function CustomizationView(props: {
   const agentName = (id: string): string => id === "all" ? t("library.allAgents") : id === "unassigned" ? t("library.unassigned") : hostLabel(id);
   const busyState = props.loading || props.busy;
 
-  const columns = useMemo<ColumnDef<CustomizationLibraryRow, never>[]>(() => [
+  const columns = useMemo<DataTableColumnDef<CustomizationLibraryRow>[]>(() => [
     {
       id: "name",
       header: t("library.cols.name"),
@@ -175,7 +174,7 @@ export function CustomizationView(props: {
             ? t("library.usage.observed", { count: observed.count })
             : t("library.usage.observedOn", { count: observed.count, date: observed.lastObservedAt.slice(0, 10) })}>{observed.count}</span>;
       },
-    } as ColumnDef<CustomizationLibraryRow, never>] : []),
+    } as DataTableColumnDef<CustomizationLibraryRow>] : []),
     {
       id: "source",
       header: t("library.cols.source"),
