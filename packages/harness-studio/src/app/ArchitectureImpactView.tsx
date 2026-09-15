@@ -113,11 +113,14 @@ export function ArchitectureImpactView({ sha }: Props) {
     for (const k of kids) { queue.push({ id: k.id, layer: layer + 1 }); }
   }
 
-  // Position
+  // Position. Every layer is centred under the widest one, and the canvas is
+  // sized from that width: sizing it from layer 0 alone leaves a container that
+  // has children off-canvas, which reads as if the model were empty.
   const maxLayer = Math.max(0, ...layerMap.keys());
+  const layerWidth = (nodes: LayoutNode[]): number => nodes.length === 0 ? 0 : nodes.length * BOX_W + (nodes.length - 1) * NODE_GAP;
+  const widest = Math.max(0, ...[...layerMap.values()].map(layerWidth));
   for (const [layer, layerNodes] of layerMap) {
-    const totalW = layerNodes.length * BOX_W + (layerNodes.length - 1) * NODE_GAP;
-    let startX = MARGIN.left + (totalW > 0 ? 0 : 0);
+    const startX = MARGIN.left + (widest - layerWidth(layerNodes)) / 2;
     for (let i = 0; i < layerNodes.length; i++) {
       const n = layerNodes[i];
       n.x = startX + i * (BOX_W + NODE_GAP);
@@ -125,11 +128,8 @@ export function ArchitectureImpactView({ sha }: Props) {
     }
   }
 
-  const svgW = Math.max(
-    MARGIN.left + MARGIN.right + (layerMap.get(0)?.length ?? 0) * (BOX_W + NODE_GAP),
-    400,
-  );
-  const svgH = MARGIN.top + MARGIN.bottom + (maxLayer + 1) * (BOX_H + LAYER_GAP);
+  const svgW = Math.max(MARGIN.left + MARGIN.right + widest, 400);
+  const svgH = MARGIN.top + MARGIN.bottom + (maxLayer + 1) * BOX_H + maxLayer * LAYER_GAP;
 
   // Declared edges
   const declaredEdges = data.relationships;

@@ -65,6 +65,8 @@ export function createRustArchHost(options: RustArchHostOptions): RustArchHost {
         sources: params.sources.map((entry) => ({ path: entry.path, source: entry.source })),
         tracked_paths: [...params.trackedPaths],
         changed_paths: [...params.changedPaths],
+        model_json: params.modelJson,
+        bindings: params.bindings.map((binding) => ({ path_glob: binding.pathGlob, element_id: binding.elementId })),
       });
       return readSnapshot(result);
     },

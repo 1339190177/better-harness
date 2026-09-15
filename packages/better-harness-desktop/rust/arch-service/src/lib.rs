@@ -133,7 +133,7 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
     );
 
     // Step 3: Build model from DSL or JSON
-    let model = build_model(&request.model_dsl, &request.model_json);
+    let model = build_model(&request.model_dsl, &request.model_json)?;
 
     // Step 4: Build bindings
     let bindings: Vec<arch_core::SourceBinding> = request.bindings.iter().map(|b| arch_core::SourceBinding {
@@ -179,17 +179,25 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
 }
 
 /// Build `ArchitectureModel` from DSL text or JSON.
-fn build_model(_dsl: &str, json: &Option<Value>) -> arch_core::ArchitectureModel {
-    if let Some(val) = json {
-        if let Ok(model) = serde_json::from_value::<arch_core::ArchitectureModel>(val.clone()) {
-            return model;
-        }
+///
+/// A declared model that cannot be read is a refusal, never an empty model:
+/// answering an empty projection would present "this project declares no
+/// boundaries" as the finding, which is the one answer that must not be invented.
+fn build_model(dsl: &str, json: &Option<Value>) -> Result<arch_core::ArchitectureModel, Refusal> {
+    if let Some(value) = json {
+        return serde_json::from_value::<arch_core::ArchitectureModel>(value.clone())
+            .map_err(|error| Refusal::new("invalid-model", format!("declared model cannot be read: {error}")));
     }
-    // If no model provided, return empty
-    arch_core::ArchitectureModel {
+    if !dsl.trim().is_empty() {
+        return Err(Refusal::new(
+            "unreadable-model",
+            "a Structurizr DSL model is not readable by this host; supply the arch-core model JSON",
+        ));
+    }
+    Ok(arch_core::ArchitectureModel {
         elements: vec![],
         relationships: vec![],
-    }
+    })
 }
 
 #[cfg(test)]
@@ -236,6 +244,55 @@ mod tests {
     fn unknown_method_is_reported() {
         let reply = call("nope", json!({}));
         assert_eq!(reply["error"]["code"], "unknown-method");
+    }
+
+    #[test]
+    fn projects_a_change_onto_the_declared_model() {
+        let reply = call("arch.snapshot", json!({
+            "sources": [{
+                "path": "packages/studio/src/a.ts",
+                "source": "export function run(): number {\n  return 1;\n}\n",
+            }],
+            "tracked_paths": ["packages/studio/src/a.ts"],
+            "changed_paths": ["packages/studio/src/a.ts"],
+            "model_json": {
+                "elements": [{
+                    "id": "studio",
+                    "name": "Studio",
+                    "kind": "Container",
+                    "description": null,
+                    "technology": null,
+                    "tags": [],
+                    "parent_id": null,
+                }],
+                "relationships": [],
+            },
+            "bindings": [{ "path_glob": "packages/studio/**", "element_id": "studio" }],
+        }));
+        assert!(reply.get("error").is_none(), "unexpected error: {reply}");
+        assert_eq!(reply["result"]["snapshot"]["model"]["elements"][0]["id"], "studio");
+        // The binding is what turns a changed file into a marked boundary.
+        assert_eq!(reply["result"]["snapshot"]["changed_hit_ids"][0], "studio");
+        assert_eq!(reply["result"]["overlay"]["changedSymbols"], 1);
+    }
+
+    #[test]
+    fn refuses_a_declared_model_it_cannot_read() {
+        // An unreadable model must not come back as an empty projection: a
+        // reader would take that for "this commit crosses no boundary".
+        let reply = call("arch.snapshot", json!({
+            "sources": [],
+            "tracked_paths": [],
+            "model_json": { "elements": "not an array", "relationships": [] },
+        }));
+        assert_eq!(reply["error"]["code"], "invalid-model");
+
+        let dsl = call("arch.snapshot", json!({
+            "sources": [],
+            "tracked_paths": [],
+            "model_dsl": "workspace {}",
+        }));
+        assert_eq!(dsl["error"]["code"], "unreadable-model");
     }
 
     #[test]

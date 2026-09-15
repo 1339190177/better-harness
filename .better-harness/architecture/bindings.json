@@ -1,0 +1,19 @@
+[
+  { "path_glob": "packages/harness-studio/**", "element_id": "harness-studio" },
+  { "path_glob": "packages/better-harness-desktop/**", "element_id": "studio-desktop" },
+  { "path_glob": "packages/harness-ui/**", "element_id": "harness-ui" },
+  { "path_glob": "packages/harness/src/**", "element_id": "harness-sdk" },
+  { "path_glob": "packages/harness/scripts/**", "element_id": "harness-sdk" },
+  { "path_glob": "packages/harness/skills/**", "element_id": "harness-sdk" },
+  { "path_glob": "packages/harness/test/**", "element_id": "harness-sdk" },
+  { "path_glob": "scripts/**", "element_id": "harness-sdk" },
+  { "path_glob": "skills/**", "element_id": "agent-assets" },
+  { "path_glob": "hooks/**", "element_id": "agent-assets" },
+  { "path_glob": "references/**", "element_id": "agent-assets" },
+  { "path_glob": "templates/**", "element_id": "agent-assets" },
+  { "path_glob": ".agents/**", "element_id": "agent-assets" },
+  { "path_glob": "prompts/**", "element_id": "agent-assets" },
+  { "path_glob": "docs/**", "element_id": "documentation" },
+  { "path_glob": "models/**", "element_id": "documentation" },
+  { "path_glob": "case-studies/**", "element_id": "documentation" }
+]

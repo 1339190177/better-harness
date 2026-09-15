@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,10 +14,9 @@ import { createRustArchHost } from "../src/server/workspace/rust-arch-provider.j
  * macOS) -> harness-arch-host -> arch-core. The unit suite stubs the driver, so
  * only this can catch a mismatch between the wire contract and the provider.
  *
- * The declared model is deliberately absent here. Discovery of `workspace.dsl`
- * / `workspace.json` is its own spec task, so this asserts the reading the pane
- * can make today: the change overlay is real, and "no declared elements" is not
- * reported as "host is unavailable".
+ * The fixture publishes a declared model, because a projection with no declared
+ * elements is exactly the state this test exists to rule out: a commit that
+ * changes a bound module has to come back with that element marked.
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const nativeDir = resolve(here, "../../better-harness-desktop/dist/native");
@@ -60,18 +59,30 @@ async function makeGitWorkspace(): Promise<{ path: string; sha: string }> {
   git(path, "config", "user.email", "alice@example.com");
   await writeFile(join(path, "store.ts"), "export function load(): number {\n  return 1;\n}\n", "utf8");
   await writeFile(join(path, "api.ts"), "import { load } from \"./store\";\nexport const read = () => load();\n", "utf8");
-  git(path, "add", ".");
+  git(path, "add", "store.ts", "api.ts");
   git(path, "commit", "-m", "feat: add store and api");
   await writeFile(join(path, "api.ts"), "import { load } from \"./store\";\nexport const read = () => load() + 1;\n", "utf8");
-  git(path, "add", ".");
+  git(path, "add", "api.ts");
   git(path, "commit", "-m", "feat: read one more");
+  await writeDeclaredModel(path);
   return { path, sha: git(path, "rev-parse", "HEAD") };
+}
+
+/** A declared model with one container bound to the fixture's modules. */
+async function writeDeclaredModel(root: string): Promise<void> {
+  const directory = join(root, ".better-harness", "architecture");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "model.json"), JSON.stringify({
+    elements: [{ id: "api", name: "API", kind: "Container", description: null, technology: "TypeScript", tags: ["core"], parent_id: null }],
+    relationships: [],
+  }), "utf8");
+  await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "**/api.ts", element_id: "api" }]), "utf8");
 }
 
 const staged = transports.filter((entry) => existsSync(entry.executable));
 
 describe.skipIf(staged.length === 0)("architecture impact over the staged host", () => {
-  it.each(staged)("reads a real commit's impact over $transport instead of reporting the host unavailable", async ({ executable, transport }) => {
+  it.each(staged)("projects a real commit onto the declared model over $transport", async ({ executable, transport }) => {
     const appDir = await makeDirectory("studio-architecture-native-app-");
     await writeFile(join(appDir, "index.html"), "<!doctype html><title>Architecture native</title>", "utf8");
     const workspace = await makeGitWorkspace();
@@ -97,9 +108,11 @@ describe.skipIf(staged.length === 0)("architecture impact over the staged host",
     // overlay counts them rather than answering a zero it never computed.
     expect(payload.overlay.changedSymbols).toBeGreaterThan(0);
     expect(payload.overlay.impactedFiles.length).toBeGreaterThan(0);
-    // No declared model is discovered yet, so the projection has no elements —
-    // which is a reading, not an "unavailable".
-    expect(payload.elements).toEqual([]);
+    // And the projection is real: the declared model came back, and the binding
+    // marked the element whose module this commit changed.
+    expect(payload.elements).toEqual([expect.objectContaining({ id: "api", kind: "Container" })]);
+    expect(payload.changedHitIds).toEqual(["api"]);
+    expect(payload.omitted).toEqual([]);
     expect(payload.dsl).toContain("workspace");
   }, 90_000);
 });

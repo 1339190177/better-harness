@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -11,6 +11,7 @@ import {
   ARCH_HOST_PROTOCOL_VERSION,
   RustArchHostError,
   createRustArchHost,
+  type RustArchHost,
 } from "../src/server/workspace/rust-arch-provider.js";
 
 const directories: string[] = [];
@@ -35,6 +36,20 @@ async function makeDirectory(prefix: string): Promise<string> {
 interface Fixture {
   path: string;
   sha: string;
+}
+
+/** The declared model a fixture project publishes, in arch-core's own shape. */
+const FIXTURE_MODEL = {
+  elements: [{ id: "api", name: "API", kind: "Container", description: null, technology: null, tags: ["core"], parent_id: null }],
+  relationships: [],
+};
+
+/** Written after the fixture's commits, so it is worktree state, not a change. */
+async function writeDeclaredModel(root: string, model: unknown = FIXTURE_MODEL): Promise<void> {
+  const directory = join(root, ".better-harness", "architecture");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "model.json"), JSON.stringify(model), "utf8");
+  await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "**/greeting.ts", element_id: "api" }]), "utf8");
 }
 
 /** Two commits whose second one changes a tracked module. */
@@ -69,22 +84,32 @@ function snapshotResult(changedSymbols = 2): unknown {
   };
 }
 
-function recordingProvider(result: () => unknown): ArchitectureImpactProvider & { calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }> }> } {
-  const calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }> }> = [];
+function recordingProvider(result: () => unknown): ArchitectureImpactProvider & { calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }>; modelJson: unknown; bindings: Array<{ pathGlob: string; elementId: string }> }> } {
+  const calls: Array<{ trackedPaths: string[]; changedPaths: string[]; sources: Array<{ path: string }>; modelJson: unknown; bindings: Array<{ pathGlob: string; elementId: string }> }> = [];
   return {
     calls,
     async architectureImpact(params) {
-      calls.push({ trackedPaths: [...params.trackedPaths], changedPaths: [...params.changedPaths], sources: params.sources.map(({ path }) => ({ path })) });
+      calls.push({
+        trackedPaths: [...params.trackedPaths],
+        changedPaths: [...params.changedPaths],
+        sources: params.sources.map(({ path }) => ({ path })),
+        modelJson: params.modelJson,
+        bindings: [...params.bindings],
+      });
       return result() as ArchitectureImpactReading;
     },
   };
 }
 
 describe("arch.snapshot route", () => {
-  async function openFixture(provider?: ArchitectureImpactProvider): Promise<Fixture & { url: string }> {
+  async function openFixture(
+    provider?: ArchitectureImpactProvider,
+    options: { declaredModel?: boolean } = {},
+  ): Promise<Fixture & { url: string }> {
     const appDir = await makeDirectory("studio-architecture-app-");
     await writeFile(join(appDir, "index.html"), "<!doctype html><title>Architecture fixture</title>", "utf8");
     const workspace = await makeGitWorkspace();
+    if (options.declaredModel !== false) await writeDeclaredModel(workspace.path);
     const selections = [workspace.path];
     started = await startHarnessStudioServer({
       appDir,
@@ -109,7 +134,7 @@ describe("arch.snapshot route", () => {
     expect(payload.dsl).toBe("");
   });
 
-  it("hands the commit's changed sources and tracked paths to the host", async () => {
+  it("hands the commit's changed sources, tracked paths and declared model to the host", async () => {
     const provider = recordingProvider(() => snapshotResult());
     const fixture = await openFixture(provider);
     const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
@@ -120,6 +145,31 @@ describe("arch.snapshot route", () => {
     expect(provider.calls[0]!.changedPaths).toEqual(["greeting.ts"]);
     expect(provider.calls[0]!.sources.map(({ path }) => path)).toEqual(["greeting.ts"]);
     expect(provider.calls[0]!.trackedPaths).toContain("greeting.ts");
+    // Without the declared model the projection would have nothing to mark, so
+    // it has to reach the host, together with the binding that maps paths onto it.
+    expect(provider.calls[0]!.modelJson).toEqual(FIXTURE_MODEL);
+    expect(provider.calls[0]!.bindings).toEqual([{ pathGlob: "**/greeting.ts", elementId: "api" }]);
+  });
+
+  it("says no model was declared rather than showing an empty projection", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider, { declaredModel: false });
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(payload).toMatchObject({ kind: "CommitArchitectureImpactV1", status: "unavailable" });
+    expect(payload.error).toContain(".better-harness/architecture/model.json");
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it("names a declared model it cannot read instead of ignoring it", async () => {
+    const fixture = await openFixture(recordingProvider(() => snapshotResult()));
+    await rm(join(fixture.path, ".better-harness"), { recursive: true, force: true });
+    await writeFile(join(fixture.path, "workspace.dsl"), "workspace {}\n", "utf8");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(payload.status).toBe("unavailable");
+    expect(payload.error).toContain("workspace.dsl");
+    expect(payload.error).toContain("not readable yet");
   });
 
   it("separates a change that reached the model from one that did not", async () => {
@@ -157,7 +207,9 @@ describe("arch.snapshot route", () => {
     // the reading — named, but not allowed to cost the reader every other file.
     await writeFile(join(fixture.path, "bulk.json"), `{"bulk": "${"x".repeat(520_000)}"}\n`, "utf8");
     await writeFile(join(fixture.path, "greeting.ts"), "export const greeting = \"third\";\n", "utf8");
-    git(fixture.path, "add", ".");
+    // Stage only this commit's files: the declared model is worktree state and
+    // belongs to no commit under test.
+    git(fixture.path, "add", "bulk.json", "greeting.ts");
     git(fixture.path, "commit", "-m", "feat: add bulk beside a change");
     const sha = git(fixture.path, "rev-parse", "HEAD");
 
@@ -177,7 +229,7 @@ describe("arch.snapshot route", () => {
     for (let index = 0; index < 8; index += 1) {
       await writeFile(join(fixture.path, `budget-${index}.ts`), `export const value${index} = "${"y".repeat(500_000)}";\n`, "utf8");
     }
-    git(fixture.path, "add", ".");
+    git(fixture.path, "add", ...Array.from({ length: 8 }, (_, index) => `budget-${index}.ts`));
     git(fixture.path, "commit", "-m", "feat: add bulky modules");
     const sha = git(fixture.path, "rev-parse", "HEAD");
 
@@ -219,6 +271,11 @@ function fakeHostProcess(respond: (request: { id: number; method: string; params
 }
 
 describe("native arch host provider", () => {
+  /** Params every provider case can start from; only the case at hand varies. */
+  const params = (overrides: Partial<Parameters<RustArchHost["architectureImpact"]>[0]> = {}) => ({
+    sources: [], trackedPaths: [], changedPaths: [], modelJson: FIXTURE_MODEL, bindings: [], ...overrides,
+  });
+
   it("describes its own protocol and maps the snapshot onto the Studio contract", async () => {
     const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
     const child = fakeHostProcess((request) => {
@@ -234,6 +291,8 @@ describe("native arch host provider", () => {
         sources: [{ path: "greeting.ts", source: "export const greeting = 1;\n" }],
         trackedPaths: ["greeting.ts"],
         changedPaths: ["greeting.ts"],
+        modelJson: FIXTURE_MODEL,
+        bindings: [{ pathGlob: "**/greeting.ts", elementId: "api" }],
       });
       // The wire is snake_case and refuses unknown fields; the contract is
       // camelCase. Both sides are asserted, because a silent mismatch here is
@@ -242,6 +301,8 @@ describe("native arch host provider", () => {
         sources: [{ path: "greeting.ts", source: "export const greeting = 1;\n" }],
         tracked_paths: ["greeting.ts"],
         changed_paths: ["greeting.ts"],
+        model_json: FIXTURE_MODEL,
+        bindings: [{ path_glob: "**/greeting.ts", element_id: "api" }],
       });
       expect(reading).toEqual({
         elements: [{ id: "api", name: "API", kind: "Container", tags: ["core"], parentId: "system" }],
@@ -262,7 +323,7 @@ describe("native arch host provider", () => {
     const child = fakeHostProcess((request) => ({ version: 1, id: request.id, result: { snapshot: { model: { elements: [{ id: "api", kind: "Service" }] } } } }));
     const host = createRustArchHost({ executable: "/native/harness-arch-host", spawnProcess: () => child as never });
     try {
-      await expect(host.architectureImpact({ sources: [], trackedPaths: [], changedPaths: [] }))
+      await expect(host.architectureImpact(params()))
         .rejects.toMatchObject({ failure: "protocol" });
     } finally {
       await host.close();
@@ -282,7 +343,7 @@ describe("native arch host provider", () => {
       const child = fakeHostProcess((request) => ({ version: 1, id: request.id, result }));
       const host = createRustArchHost({ executable: "/native/harness-arch-host", spawnProcess: () => child as never });
       try {
-        await expect(host.architectureImpact({ sources: [], trackedPaths: [], changedPaths: [] }))
+        await expect(host.architectureImpact(params()))
           .rejects.toMatchObject({ failure: "protocol" });
       } finally {
         await host.close();
@@ -294,11 +355,10 @@ describe("native arch host provider", () => {
     const child = fakeHostProcess((request) => ({ version: 1, id: request.id, result: snapshotResult() }));
     const host = createRustArchHost({ executable: "/native/harness-arch-host", timeoutMs: 200, spawnProcess: () => child as never });
     try {
-      await expect(host.architectureImpact({
+      await expect(host.architectureImpact(params({
         sources: [{ path: "bulk.ts", source: "x".repeat(4 * 1024 * 1024) }],
-        trackedPaths: [],
         changedPaths: ["bulk.ts"],
-      })).rejects.toMatchObject({ failure: "limit" });
+      }))).rejects.toMatchObject({ failure: "limit" });
       // The host was never handed a frame it would exit on, so it is still there.
       expect(child.killed).toBe(false);
     } finally {
@@ -320,7 +380,7 @@ describe("native arch host provider", () => {
     const child = fakeHostProcess(() => undefined);
     const host = createRustArchHost({ executable: "/native/harness-arch-host", timeoutMs: 10, spawnProcess: () => child as never });
     try {
-      await expect(host.architectureImpact({ sources: [], trackedPaths: [], changedPaths: [] }))
+      await expect(host.architectureImpact(params()))
         .rejects.toMatchObject({ failure: "timeout" });
     } finally {
       await host.close();
@@ -336,8 +396,8 @@ describe("native arch host provider", () => {
     }));
     const host = createRustArchHost({ executable: "/native/harness-arch-host", spawnProcess: () => child as never });
     try {
-      await expect(host.architectureImpact({ sources: [], trackedPaths: ["limit"], changedPaths: [] })).rejects.toMatchObject({ failure: "limit" });
-      await expect(host.architectureImpact({ sources: [], trackedPaths: ["other"], changedPaths: [] })).rejects.toMatchObject({ failure: "call" });
+      await expect(host.architectureImpact(params({ trackedPaths: ["limit"] }))).rejects.toMatchObject({ failure: "limit" });
+      await expect(host.architectureImpact(params({ trackedPaths: ["other"] }))).rejects.toMatchObject({ failure: "call" });
     } finally {
       await host.close();
     }

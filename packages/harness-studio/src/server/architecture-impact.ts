@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import type { GitCommitDetail } from "../contracts/git-history.js";
 import type { ArchitectureImpact, ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
+import { discoverDeclaredModel } from "./architecture-model.js";
 import { GitHistoryError, readGitRevisionFile } from "./git-history.js";
 
 /**
@@ -43,11 +44,19 @@ export async function readCommitArchitectureImpact(
 ): Promise<ArchitectureImpact> {
   const { repoRoot, sha, detail, provider, cache } = request;
 
-  // Collect tracked paths for import resolution. This is also part of the cache
-  // key: the paths a worktree tracks change which imports resolve, so a reading
-  // is only valid for the worktree it was made in.
+  // Collect tracked paths for import resolution, and find the declared model.
+  // Both are worktree state, so both are part of the cache key: the paths a
+  // worktree tracks decide which imports resolve, and the model decides what the
+  // projection marks at all.
   const trackedPaths = await listTrackedFilesAtRoot(repoRoot);
-  const key = `${sha}:${pathDigest(trackedPaths)}`;
+  const discovery = await discoverDeclaredModel(repoRoot, trackedPaths);
+  if (discovery.kind !== "model") {
+    return unavailableImpact(sha, discovery.kind === "absent"
+      ? `No declared architecture model was found. Add ${discovery.looked[0]} to project this commit onto one.`
+      : `${discovery.path} cannot be read: ${discovery.reason}.`);
+  }
+  const { modelJson, bindings } = discovery.model;
+  const key = `${sha}:${pathDigest(trackedPaths)}:${digest(JSON.stringify(modelJson))}:${digest(JSON.stringify(bindings))}`;
   const cached = cache?.get(key);
   if (cached !== undefined) return cached;
 
@@ -77,6 +86,8 @@ export async function readCommitArchitectureImpact(
     sources,
     trackedPaths,
     changedPaths,
+    modelJson,
+    bindings,
   });
 
   const result: ArchitectureImpact = {
@@ -108,6 +119,24 @@ export async function readCommitArchitectureImpact(
   return result;
 }
 
+/** A reading this environment cannot make, carrying the reason it could not. */
+export function unavailableImpact(sha: string, message: string): ArchitectureImpact {
+  return {
+    kind: "CommitArchitectureImpactV1",
+    sha,
+    status: "unavailable",
+    elements: [],
+    relationships: [],
+    observedEdges: [],
+    codeHitIds: [],
+    changedHitIds: [],
+    overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
+    dsl: "",
+    omitted: [],
+    error: message,
+  };
+}
+
 /**
  * One changed file's content at the revision, or the reason it was left out.
  *
@@ -124,9 +153,14 @@ async function readChangedSource(repoRoot: string, sha: string, path: string): P
   }
 }
 
+/** A short digest of a value's serialized form, for the cache key. */
+function digest(value: string): string {
+  return createHash("sha1").update(value).digest("hex").slice(0, 16);
+}
+
 /** A short digest of the tracked path set, for the cache key. */
 function pathDigest(trackedPaths: readonly string[]): string {
-  return createHash("sha1").update(trackedPaths.join("\n")).digest("hex").slice(0, 16);
+  return digest(trackedPaths.join("\n"));
 }
 
 async function listTrackedFilesAtRoot(repoRoot: string): Promise<string[]> {

@@ -1,8 +1,7 @@
 import { GitCommitDetail } from "../../contracts/git-history.js";
-import { ArchitectureImpact } from "../../contracts/architecture-impact.js";
 import { GitHistoryError, readGitCommitAtRoot, readGitFilePatchAtRoot, readGitLog, readGitRefsAtRoot } from "../git-history.js";
 import { readStructuralDiff } from "../structural-diff.js";
-import { readCommitArchitectureImpact } from "../architecture-impact.js";
+import { readCommitArchitectureImpact, unavailableImpact } from "../architecture-impact.js";
 import { RustDiffHostError } from "../workspace/rust-diff-provider.js";
 import { open } from "node:fs/promises";
 import { ServerResponse } from "node:http";
@@ -131,23 +130,6 @@ export async function serveGitArchitectureImpact(
     // status the pane cannot render would only crash the reader's window.
     respondJson(response, 200, unavailableImpact(sha, error instanceof Error ? error.message : "Architecture impact could not be read."));
   }
-}
-/** A reading this environment cannot make, carrying the reason it could not. */
-function unavailableImpact(sha: string, message: string): ArchitectureImpact {
-  return {
-    kind: "CommitArchitectureImpactV1",
-    sha,
-    status: "unavailable",
-    elements: [],
-    relationships: [],
-    observedEdges: [],
-    codeHitIds: [],
-    changedHitIds: [],
-    overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
-    dsl: "",
-    omitted: [],
-    error: message,
-  };
 }
 async function cachedGitCommit(workspace: GitStudioWorkspace, sha: string): Promise<GitCommitDetail> {
   const cached = workspace.gitCommitCache?.get(sha);

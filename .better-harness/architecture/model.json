@@ -1,0 +1,109 @@
+{
+  "elements": [
+    {
+      "id": "better-harness",
+      "name": "Better Harness",
+      "kind": "SoftwareSystem",
+      "description": "The outer coding-agent harness: lifecycle controls, agent assets, adapters, evidence and durable reports.",
+      "technology": null,
+      "tags": ["system"],
+      "parent_id": null
+    },
+    {
+      "id": "harness-sdk",
+      "name": "Harness SDK & CLI",
+      "kind": "Container",
+      "description": "Skill, hook and adapter model plus the analysis, review-trigger and report CLI.",
+      "technology": "TypeScript / Node",
+      "tags": ["runtime"],
+      "parent_id": "better-harness"
+    },
+    {
+      "id": "harness-studio",
+      "name": "Harness Studio",
+      "kind": "Container",
+      "description": "Local evidence workbench: sessions, commits, artifacts, memory and customizations.",
+      "technology": "TypeScript / React",
+      "tags": ["runtime", "ui"],
+      "parent_id": "better-harness"
+    },
+    {
+      "id": "studio-desktop",
+      "name": "Studio Desktop Shell",
+      "kind": "Container",
+      "description": "Electron shell that hosts the Studio server and owns the staged native capability services.",
+      "technology": "Electron / Rust NSXPC",
+      "tags": ["runtime", "native"],
+      "parent_id": "better-harness"
+    },
+    {
+      "id": "harness-ui",
+      "name": "Harness UI",
+      "kind": "Container",
+      "description": "Shared React UI primitives and tokens consumed by the workbench surfaces.",
+      "technology": "React",
+      "tags": ["ui"],
+      "parent_id": "better-harness"
+    },
+    {
+      "id": "agent-assets",
+      "name": "Agent Assets",
+      "kind": "Container",
+      "description": "Skills, hooks, references and templates that a coding-agent host loads.",
+      "technology": "Markdown / JavaScript",
+      "tags": ["assets"],
+      "parent_id": "better-harness"
+    },
+    {
+      "id": "documentation",
+      "name": "Documentation & Specs",
+      "kind": "Container",
+      "description": "Docs site, models, ADRs, specs and case studies.",
+      "technology": "Docusaurus / Markdown",
+      "tags": ["docs"],
+      "parent_id": "better-harness"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "desktop-hosts-studio",
+      "source_id": "studio-desktop",
+      "target_id": "harness-studio",
+      "description": "spawns and supervises the Studio server",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "studio-uses-sdk",
+      "source_id": "harness-studio",
+      "target_id": "harness-sdk",
+      "description": "reads the harness model through the SDK",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "studio-renders-ui",
+      "source_id": "harness-studio",
+      "target_id": "harness-ui",
+      "description": "renders workbench surfaces",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "studio-reads-assets",
+      "source_id": "harness-studio",
+      "target_id": "agent-assets",
+      "description": "inspects installed skills, hooks and references",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "docs-describe-assets",
+      "source_id": "documentation",
+      "target_id": "agent-assets",
+      "description": "documents the shipped assets",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    }
+  ]
+}

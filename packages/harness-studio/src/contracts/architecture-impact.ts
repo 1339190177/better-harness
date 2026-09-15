@@ -79,11 +79,21 @@ export interface ArchitectureImpact {
   error?: string;
 }
 
+/** A path glob bound to one declared element id. */
+export interface ArchitectureSourceBinding {
+  pathGlob: string;
+  elementId: string;
+}
+
 export interface ArchitectureImpactProvider {
   architectureImpact(params: {
     sources: Array<{ path: string; source: string }>;
     trackedPaths: string[];
     changedPaths: string[];
+    /** The worktree's declared model, in arch-core's own shape. */
+    modelJson: unknown;
+    /** Which declared element each path glob belongs to. */
+    bindings: ArchitectureSourceBinding[];
   }): Promise<ArchitectureImpactReading>;
 }
 

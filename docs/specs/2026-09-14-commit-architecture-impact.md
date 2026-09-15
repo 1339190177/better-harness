@@ -240,6 +240,13 @@ replace the Artifact provider lane.
   exceptions" before its first frame; the file now mirrors `diff-protocol.m`.
 - AC-3 (Wire): `arch.snapshot` reports `overlay.impactedFiles` as the impacted path list, which
   is what the Studio contract promises, rather than a count under a path-named key.
+- AC-3 (Discovery, task 12 in part): `server/architecture-model.ts` reads the worktree's declared
+  model — `.better-harness/architecture/model.json` in arch-core's shape plus `bindings.json` —
+  from the tracked path list, so discovery is bounded by what git knows. Absent, unreadable and
+  other-dialect models each answer `unavailable` with their reason, and a trackable model reaches
+  the host as `model_json` + `bindings`. `arch-service` now refuses a declared model it cannot
+  read (`invalid-model`) instead of silently projecting an empty one, which is how "0 elements"
+  stayed invisible.
 - AC-3 (Failure policy): the pane's contract has three states and no error state, so every
   failure to make a reading — absent host, host fault, a changed file over the host's per-file
   bound — answers `unavailable` with its reason. `readSnapshot` refuses a reply that lost a
@@ -254,8 +261,11 @@ replace the Artifact provider lane.
   `test/architecture-impact.test.ts`: host-absent `unavailable`, provider mapping and refusal
   classification, cache reuse, and a failed host reported as `unavailable` with its reason.
 - `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
-  commit read through the real provider over both `stdio` and the macOS NSXPC bridge, asserting
-  `status: "impact"`, non-empty impact overlay and no `error`.
+  commit read through the real provider over both `stdio` and the macOS NSXPC bridge, publishing
+  a declared model and asserting the projection comes back with that element marked changed.
+- A dev-shell probe over this repository: `fbba212d` answers `status: "impact"`, 7 elements,
+  114 changed symbols, with the pane rendering the model and marking Harness Studio, Studio
+  Desktop Shell and Documentation as changed.
 - `npm test` in `packages/better-harness-desktop` (10 tests) for the versioned start contract and
   `npm run smoke -w @qoder-ai/better-harness-desktop` for the Electron receipt
   (`nativeProof.archRuntime: "arch-v1-nsxpc"`, `archPid` distinct from `archBridgePid`).
@@ -263,10 +273,15 @@ replace the Artifact provider lane.
 
 ### Still open
 
-- Declared-model discovery (task 12) and the `unavailable` branch for "no model discovered" in
-  AC-3. Until it lands, a real commit yields a true change overlay with an empty declared model
-  — the projection is honest but has no elements to mark.
+- Structurizr sources. Discovery reads `.better-harness/architecture/model.json` (arch-core's own
+  shape) and `bindings.json`; a tracked `*.dsl` or workspace JSON is reported as an unreadable
+  declared model, named in the pane, rather than translated. Translating those dialects — and
+  reading their relationships, views and tags faithfully — is the remaining half of task 12.
 - `dagre` layout, export round-trip and the four-pane browser evidence (tasks 16-18, 23).
+  The pane's own hand-rolled layout is what it is today; it now sizes the canvas from the widest
+  layer and centres each layer, which a one-root model needs to show its containers at all.
+- Authoring a model is content, not code: this repository ships one under
+  `.better-harness/architecture/` so its own commits can be read in the pane.
 
 ### Evidence that was expected but is not yet produced
 
