@@ -225,14 +225,58 @@ replace the Artifact provider lane.
 - AC-3 (Route): `GET /api/git/commits/:sha/architecture` implemented in `server/git/routes.ts`, registered in `server.ts`. Returns `unavailable` when the host is missing.
 - AC-6 (Hook): `scripts/review-trigger/architecture-impact.mjs` wired into Stop-hook envelope. Offline, deterministic, cross-platform, no parsing.
 - Pipeline: `scripts/rust.mjs` builds + stages `arch-core` and `arch-service` alongside existing services.
+- AC-3 (Host wiring, task 14): `server/workspace/rust-host-transport.ts` holds the supervised
+  JSONL transport shared by the diff and arch providers; `rust-arch-provider.ts` speaks
+  `arch.snapshot` under `arch-rust-1.0.0+jsonl-v1` and maps the host's snake_case result onto
+  `ArchitectureImpactReading` (`parentId`/`sourceId`/`targetId`, `impactedFiles` as paths).
+  The desktop shell injects it on all three chains (`main.mjs`, `service-host.mjs`,
+  `studio-runtime.mjs`) and probes it at startup like every other host; `installArchXpc` and the
+  `after-pack` hook bundle the service for macOS, and the Windows/Linux `extraResources` filter
+  ships `harness-arch-host`. A host failure now answers `unavailable` with its reason instead of
+  a status the pane cannot render.
+- AC-3 (Defect): `rust/arch-service/src/arch-protocol.m` declared `forwardRequest:reply:`
+  protocols, not the `sendFrame:`/`deliverFrame:`/`hostFailed:` shape `xpc.rs` sends and every
+  other host service declares. The macOS bridge aborted with "Rust cannot catch foreign
+  exceptions" before its first frame; the file now mirrors `diff-protocol.m`.
+- AC-3 (Wire): `arch.snapshot` reports `overlay.impactedFiles` as the impacted path list, which
+  is what the Studio contract promises, rather than a count under a path-named key.
+- AC-3 (Failure policy): the pane's contract has three states and no error state, so every
+  failure to make a reading — absent host, host fault, a changed file over the host's per-file
+  bound — answers `unavailable` with its reason. `readSnapshot` refuses a reply that lost a
+  container instead of degrading it to a zero reading, the request line is capped at the 4 MiB
+  the hosts' `wire.rs` accepts so an oversized request is a bounded refusal instead of a killed
+  host, the per-file bound is aligned to the host's `MAX_FILE_BYTES`, and the reading cache is
+  keyed by commit plus worktree path digest.
 
-- `npm run test:rust -w @qoder-ai/better-harness-desktop`
-- focused `npx vitest run` for the Studio contract, server and hook files
-- `npm run better-harness-desktop:pack` plus the packaged smoke receipt showing
-  the arch service PID distinct from the bridge PID
-- Playwright screenshots for the pane at three widths in light and dark
+### Verified by
+
+- `npx vitest run` in `packages/harness-studio` (90 files, 696 tests), including the new
+  `test/architecture-impact.test.ts`: host-absent `unavailable`, provider mapping and refusal
+  classification, cache reuse, and a failed host reported as `unavailable` with its reason.
+- `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
+  commit read through the real provider over both `stdio` and the macOS NSXPC bridge, asserting
+  `status: "impact"`, non-empty impact overlay and no `error`.
+- `npm test` in `packages/better-harness-desktop` (10 tests) for the versioned start contract and
+  `npm run smoke -w @qoder-ai/better-harness-desktop` for the Electron receipt
+  (`nativeProof.archRuntime: "arch-v1-nsxpc"`, `archPid` distinct from `archBridgePid`).
+- `cargo test --release` for `arch-service` (4 tests), including the overlay path-list assertion.
+
+### Still open
+
+- Declared-model discovery (task 12) and the `unavailable` branch for "no model discovered" in
+  AC-3. Until it lands, a real commit yields a true change overlay with an empty declared model
+  — the projection is honest but has no elements to mark.
+- `dagre` layout, export round-trip and the four-pane browser evidence (tasks 16-18, 23).
+
+### Evidence that was expected but is not yet produced
+
+- `npm run test:rust -w @qoder-ai/better-harness-desktop` (the full cross-service Rust suite);
+  only `arch-service` was run for this change.
+- `npm run better-harness-desktop:pack` plus the packaged smoke receipt. The receipt above comes
+  from the dev shell, so the `after-pack` install of the arch service is reviewed but not run.
+- Playwright screenshots for the pane at three widths in light and dark.
 - a `node scripts/review-trigger/cli.mjs --mode=stop --json` run whose envelope
-  contains the new source's findings
+  contains the new source's findings.
 
 ## Decisions and Risks
 

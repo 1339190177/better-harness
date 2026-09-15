@@ -8,7 +8,7 @@ import { DebuggerSession } from "../contracts/debugger-session.js";
 import { CheckpointSourcePreview, ExperimentLockReceipt } from "../contracts/experiment-setup.js";
 import { GitCommitDetail, GitRefsSnapshot } from "../contracts/git-history.js";
 import { StructuralDiff, StructuralDiffProvider } from "../contracts/structural-diff.js";
-import type { ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
+import type { ArchitectureImpact, ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
 import { UserInputTraceV1 } from "../contracts/input-trace.js";
 import { StudioProjectDescriptor, StudioProjectKind } from "../contracts/studio-project.js";
 import { ArtifactCompileLimits } from "./artifacts/registry/artifact-compile-runtime.js";
@@ -157,12 +157,12 @@ export interface HarnessStudioServerOptions {
    * The desktop shell owns the path, like every other staged binary.
    */
   structuralDiffProvider?: StructuralDiffProvider;
-    /**
-     * Native architecture-impact host. When present, the commit view can show
-     * a C4 projection of the selected commit; when absent the architecture pane
-     * reports "unavailable".
-     */
-    architectureImpactProvider?: ArchitectureImpactProvider;
+  /**
+   * Native architecture-impact host. When present, the commit view can show
+   * a C4 projection of the selected commit; when absent the architecture pane
+   * reports "unavailable".
+   */
+  architectureImpactProvider?: ArchitectureImpactProvider;
   /**
    * Which ACP host `acpHostExecutable` is. `"nsxpc"` means it is the macOS
    * `harness-acp-client` bridge to a launchd-managed service; `"stdio"` (default)
@@ -298,6 +298,8 @@ export interface StudioWorkspace {
   gitCommitCache?: Map<string, GitCommitDetail>;
   /** Structural readings of commit files, keyed by commit and path. */
   structuralDiffCache?: Map<string, StructuralDiff>;
+  /** Architecture readings of commits, keyed by commit. */
+  architectureImpactCache?: Map<string, ArchitectureImpact>;
   ownedDirectory?: string;
 }
 export interface StoredWorkspaceSession extends StudioWorkspaceSession {

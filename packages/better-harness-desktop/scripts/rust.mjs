@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc } from './nsxpc-bundle.mjs';
+import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc, installArchXpc } from './nsxpc-bundle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const test = process.argv.includes('--test');
@@ -99,7 +99,9 @@ if (!test && process.platform === 'darwin') {
   await installDiffXpc(diffApp, native, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', diffApp], { stdio: 'inherit' });
   const archApp = join(root, 'dist', 'native', 'Harness Arch.app');
-  await installDiffXpc(archApp, native, { development: true });
+  // The arch service bundles no vendored engine, so unlike Diff it installs no
+  // third-party notice.
+  await installArchXpc(archApp, native, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', archApp], { stdio: 'inherit' });
   if (box) {
     for (const binary of ['harness-box-client', 'harness-box-xpc']) {

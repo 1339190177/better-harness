@@ -69,6 +69,31 @@ export {
   type RustDiffHostOptions,
 } from "./server/workspace/rust-diff-provider.js";
 export {
+  createRustArchHost,
+  ARCH_HOST_PROTOCOL_VERSION,
+  RustArchHostError,
+  type RustArchFailure,
+  type RustArchHost,
+  type RustArchHostOptions,
+} from "./server/workspace/rust-arch-provider.js";
+export {
+  createSupervisedRustHost,
+  RustHostError,
+  type RustHostFailure,
+  type SupervisedRustHost,
+  type SupervisedRustHostOptions,
+} from "./server/workspace/rust-host-transport.js";
+export {
+  isArchitectureImpact,
+  type ArchitectureElement,
+  type ArchitectureImpact,
+  type ArchitectureImpactProvider,
+  type ArchitectureImpactReading,
+  type ArchitectureImpactStatus,
+  type ArchitectureOverlay,
+  type ArchitectureRelationship,
+} from "./contracts/architecture-impact.js";
+export {
   isStructuralDiff,
   isStructuralDiffResult,
   type StructuralDiff,

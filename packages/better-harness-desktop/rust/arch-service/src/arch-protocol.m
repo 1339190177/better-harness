@@ -1,30 +1,14 @@
-// Objective-C protocol declarations for the arch NSXPC service.
-//
-// ```text
-//  Studio (Node)                   launchd service
-//  ────────────                    ──────────────
-//  harness-arch-client <NSXPC> harness-arch-xpc <stdio> harness-arch-host
-// ```
-
+// ABI metadata only: every listener, service and bridge behaviour is Rust.
 #import <Foundation/Foundation.h>
 
-@protocol ArchHostProtocol
-- (void)forwardRequest:(NSData *)requestData reply:(void (^)(NSData *))reply;
+@protocol HarnessArchHostProtocol
+- (void)sendFrame:(NSData *)frame;
 @end
 
-@protocol ArchClientProtocol
-- (void)forwardRequest:(NSData *)requestData reply:(void (^)(NSData *))reply;
+@protocol HarnessArchClientProtocol
+- (void)deliverFrame:(NSData *)frame;
+- (void)hostFailed:(NSString *)reason;
 @end
 
-// Generate the protocol objects that the Rust `extern "C"` declarations refer to.
-// The Rust side declares:
-//   unsafe extern "C" { fn harness_arch_host_protocol() -> *const AnyProtocol; }
-//   unsafe extern "C" { fn harness_arch_client_protocol() -> *const AnyProtocol; }
-
-id harness_arch_host_protocol(void) {
-    return @protocol(ArchHostProtocol);
-}
-
-id harness_arch_client_protocol(void) {
-    return @protocol(ArchClientProtocol);
-}
+Protocol *harness_arch_host_protocol(void) { return @protocol(HarnessArchHostProtocol); }
+Protocol *harness_arch_client_protocol(void) { return @protocol(HarnessArchClientProtocol); }

@@ -6,6 +6,7 @@ export const serviceId = 'com.qoder.harness-studio.oxc';
 export const acpServiceId = 'com.qoder.harness-studio.acp';
 export const evidenceServiceId = 'com.qoder.harness-studio.evidence';
 export const diffServiceId = 'com.qoder.harness-studio.diff';
+export const archServiceId = 'com.qoder.harness-studio.arch';
 export const esbuildServiceId = 'com.qoder.harness-studio.esbuild';
 const plist = (body) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -170,6 +171,34 @@ export async function installDiffXpc(appPath, binaryDirectory, { development = f
   if (development) await writeFile(join(contents, 'Info.plist'), plist(`
 <key>CFBundleIdentifier</key><string>${diffServiceId}-development</string>
 <key>CFBundleExecutable</key><string>harness-diff-client</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSUIElement</key><true/>`));
+}
+
+/**
+ * Architecture-impact NSXPC service, same shape as Diff: the service spawns one
+ * unmodified `harness-arch-host` driver per connection and only tunnels frames,
+ * so fact extraction keeps its own process. It bundles no third-party notice
+ * because, unlike the diff engine, nothing here is vendored in-tree.
+ */
+export async function installArchXpc(appPath, binaryDirectory, { development = false } = {}) {
+  const contents = join(appPath, 'Contents');
+  const service = join(contents, 'XPCServices', `${archServiceId}.xpc`, 'Contents');
+  await mkdir(join(contents, 'MacOS'), { recursive: true });
+  await mkdir(join(service, 'MacOS'), { recursive: true });
+  await cp(join(binaryDirectory, 'harness-arch-client'), join(contents, 'MacOS', 'harness-arch-client'));
+  await cp(join(binaryDirectory, 'harness-arch-xpc'), join(service, 'MacOS', 'harness-arch-xpc'));
+  await cp(join(binaryDirectory, 'harness-arch-host'), join(service, 'MacOS', 'harness-arch-host'));
+  await writeFile(join(service, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${archServiceId}</string>
+<key>CFBundleExecutable</key><string>harness-arch-xpc</string>
+<key>CFBundlePackageType</key><string>XPC!</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>XPCService</key><dict><key>ServiceType</key><string>Application</string></dict>`));
+  if (development) await writeFile(join(contents, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${archServiceId}-development</string>
+<key>CFBundleExecutable</key><string>harness-arch-client</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSUIElement</key><true/>`));

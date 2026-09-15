@@ -33,6 +33,13 @@ export interface ArchitectureOverlay {
   impactedFiles: string[];
 }
 
+/**
+ * What a host must produce. The server owns `kind`, `sha` and `status`: the
+ * commit under review and whether the change reached the model are facts about
+ * the request, not claims a provider gets to make about its own output.
+ */
+export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error">;
+
 export interface ArchitectureImpact {
   kind: "CommitArchitectureImpactV1";
   sha: string;
@@ -60,7 +67,7 @@ export interface ArchitectureImpactProvider {
     sources: Array<{ path: string; source: string }>;
     trackedPaths: string[];
     changedPaths: string[];
-  }): Promise<ArchitectureImpact>;
+  }): Promise<ArchitectureImpactReading>;
 }
 
 export function isArchitectureImpact(value: unknown): value is ArchitectureImpact {

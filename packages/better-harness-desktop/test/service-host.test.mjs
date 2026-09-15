@@ -21,6 +21,10 @@ const setup = (overrides = {}) => {
     esbuildExecutable: '/native/harness-esbuild-client', esbuildTransport: 'nsxpc',
     evidenceHostExecutable: '/native/harness-evidence-host',
     evidenceHostTransport: 'nsxpc',
+    diffHostExecutable: '/native/harness-diff-host',
+    diffHostTransport: 'nsxpc',
+    archHostExecutable: '/native/harness-arch-host',
+    archHostTransport: 'nsxpc',
     pickDirectory: async () => undefined,
     onFailure: (error) => failures.push(error), ...overrides,
   });
@@ -47,6 +51,10 @@ test('startup sends the versioned contract and returns the validated ready resul
   assert.equal(child.sent[0].esbuildTransport, 'nsxpc');
   assert.equal(child.sent[0].evidenceHostExecutable, '/native/harness-evidence-host');
   assert.equal(child.sent[0].evidenceHostTransport, 'nsxpc');
+  assert.equal(child.sent[0].diffHostExecutable, '/native/harness-diff-host');
+  assert.equal(child.sent[0].diffHostTransport, 'nsxpc');
+  assert.equal(child.sent[0].archHostExecutable, '/native/harness-arch-host');
+  assert.equal(child.sent[0].archHostTransport, 'nsxpc');
   ready(child);
   assert.equal((await service.started).url, 'http://127.0.0.1:3311');
   const stopping = service.stop();

@@ -172,6 +172,14 @@ else {
       diffHostExecutable: process.platform === 'darwin'
         ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Diff.app/Contents', import.meta.url)), 'MacOS', 'harness-diff-client')
         : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', process.platform === 'win32' ? 'harness-diff-host.exe' : 'harness-diff-host'),
+      // The architecture-impact engine parses every changed file and resolves
+      // its import graph, so macOS reaches it through its own launchd-managed
+      // service and Windows/Linux spawn the stdio driver directly, the same
+      // split ACP, Evidence and Diff already use.
+      archHostTransport: process.platform === 'darwin' ? 'nsxpc' : 'stdio',
+      archHostExecutable: process.platform === 'darwin'
+        ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Arch.app/Contents', import.meta.url)), 'MacOS', 'harness-arch-client')
+        : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', process.platform === 'win32' ? 'harness-arch-host.exe' : 'harness-arch-host'),
       // The microVM shim is built only where BoxLite can be compiled, so its
       // absence is normal rather than an error: Studio then hides the placement
       // instead of offering a run it cannot start.

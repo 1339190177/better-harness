@@ -2,7 +2,7 @@ import { cp, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installNsxpc, installEsbuildXpc, esbuildServiceId, installAcpXpc, installEvidenceXpc, installDiffXpc, serviceId, acpServiceId, evidenceServiceId, diffServiceId } from './nsxpc-bundle.mjs';
+import { installNsxpc, installEsbuildXpc, esbuildServiceId, installAcpXpc, installEvidenceXpc, installDiffXpc, installArchXpc, serviceId, acpServiceId, evidenceServiceId, diffServiceId, archServiceId } from './nsxpc-bundle.mjs';
 
 export default async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
@@ -20,6 +20,10 @@ export default async function afterPack(context) {
   // ships inside the .xpc bundle and Studio's bridge goes in Contents/MacOS,
   // exactly like the OXC, ACP and Evidence bridges above.
   await installDiffXpc(app, native);
+  // The architecture-impact service ships on both packaging chains, exactly
+  // like the four above: a service wired into only one builds locally and is
+  // missing from the packaged app.
+  await installArchXpc(app, native);
   // Also keep the plain driver in Resources/native so Windows/Linux and macOS
   // share one packaged-path rule; macOS itself now reaches it through the bundle.
   const nativeResources = join(app, 'Contents', 'Resources', 'native');
@@ -43,6 +47,9 @@ export default async function afterPack(context) {
     join(app, 'Contents', 'XPCServices', `${diffServiceId}.xpc`, 'Contents', 'MacOS', 'harness-diff-host'),
     join(app, 'Contents', 'XPCServices', `${diffServiceId}.xpc`),
     join(app, 'Contents', 'MacOS', 'harness-diff-client'),
+    join(app, 'Contents', 'XPCServices', `${archServiceId}.xpc`, 'Contents', 'MacOS', 'harness-arch-host'),
+    join(app, 'Contents', 'XPCServices', `${archServiceId}.xpc`),
+    join(app, 'Contents', 'MacOS', 'harness-arch-client'),
     join(nativeResources, 'harness-acp-host'),
     join(nativeResources, 'harness-evidence-host'),
   ]) {

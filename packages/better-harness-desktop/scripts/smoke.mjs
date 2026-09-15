@@ -99,6 +99,13 @@ try {
   if (nativeProof.transport === 'nsxpc') assert.notEqual(nativeProof.oxcPid, nativeProof.bridgePid);
   assert.equal(nativeProof.acpTransport, process.platform === 'darwin' ? 'nsxpc' : 'stdio');
   assert.equal(nativeProof.acpRuntime, process.platform === 'darwin' ? 'acp-v1-nsxpc' : 'acp-v1-rust');
+  // The architecture-impact host proves its own hop, so a commit pane that
+  // cannot read a projection fails here rather than in front of a reader.
+  assert.equal(nativeProof.archTransport, process.platform === 'darwin' ? 'nsxpc' : 'stdio');
+  assert.equal(nativeProof.archRuntime, process.platform === 'darwin' ? 'arch-v1-nsxpc' : 'arch-v1-rust');
+  assert.ok(nativeProof.archPid > 0);
+  assert.notEqual(nativeProof.archPid, nativeProof.studioPid);
+  if (nativeProof.archTransport === 'nsxpc') assert.notEqual(nativeProof.archPid, nativeProof.archBridgePid);
   // The bridge belongs to Studio; the NSXPC service lifetime belongs to launchd.
   assert.throws(() => process.kill(nativeProof.bridgePid, 0), { code: 'ESRCH' });
   assert.notEqual(proof.metrics[0].pid, proof.mainPid);
@@ -146,7 +153,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement !== document.body), true);
   assert.deepEqual(errors, []);
   // Snapshot active-renderer errors before intentional HTTP/EventSource shutdown.
-  receipt = { nativeProof, nativeArtifactRendered: true, nativeArtifactInteraction: true, oxcStartupProbe: true, acpRuntimeProfile: studioConfig.body.acpRuntimeProfile, acpAgentCount: studioConfig.body.acpAgents?.filter((agent) => agent.available).length ?? 0, directorySelection: true, origin, node: proof.node, mainPid: proof.mainPid, servicePid: proof.metrics[0].pid,
+  receipt = { nativeProof, nativeArtifactRendered: true, nativeArtifactInteraction: true, oxcStartupProbe: true, acpRuntimeProfile: studioConfig.body.acpRuntimeProfile, archRuntime: nativeProof.archRuntime, acpAgentCount: studioConfig.body.acpAgents?.filter((agent) => agent.available).length ?? 0, directorySelection: true, origin, node: proof.node, mainPid: proof.mainPid, servicePid: proof.metrics[0].pid,
     rendererSandbox: true, httpAuthorization: true, directoryCancellation: true, errors: [...errors] };
 } finally {
   if (!receipt && nativeStderr) console.error(nativeStderr);

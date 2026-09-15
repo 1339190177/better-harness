@@ -4,6 +4,7 @@ import { projectUserInputTrace } from "../../contracts/input-trace.js";
 import { IntentCorrelationAnalysisV1, IntentCorrelationContractError, validateIntentCorrelationAnalysis } from "../../contracts/intent-correlation.js";
 import { MAX_STUDIO_PROJECTS, STUDIO_PROJECT_CATALOG_KIND, type StudioProjectDescriptor } from "../../contracts/studio-project.js";
 import type { StructuralDiff } from "../../contracts/structural-diff.js";
+import type { ArchitectureImpact } from "../../contracts/architecture-impact.js";
 import { validateStudioCustomizationAnalysis } from "../customization-collector.js";
 import { sessionFromRetainedRun } from "../debugger-session-transform.js";
 import { resolveGitRepositoryRoot } from "../git-history.js";
@@ -180,6 +181,7 @@ async function discoverWorkspace(options: HarnessStudioServerOptions, workspaceP
       gitRoot,
       gitCommitCache: new Map<string, GitCommitDetail>(),
       structuralDiffCache: new Map<string, StructuralDiff>(),
+      architectureImpactCache: new Map<string, ArchitectureImpact>(),
     }),
   };
 }

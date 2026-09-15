@@ -1,4 +1,5 @@
 import { GitCommitDetail } from "../../contracts/git-history.js";
+import { ArchitectureImpact } from "../../contracts/architecture-impact.js";
 import { GitHistoryError, readGitCommitAtRoot, readGitFilePatchAtRoot, readGitLog, readGitRefsAtRoot } from "../git-history.js";
 import { readStructuralDiff } from "../structural-diff.js";
 import { readCommitArchitectureImpact } from "../architecture-impact.js";
@@ -101,35 +102,51 @@ export async function serveGitArchitectureImpact(
   options: HarnessStudioServerOptions,
   sha: string,
 ): Promise<void> {
+  // The workspace is a precondition, not a reading, so a non-repository root
+  // keeps its ordinary Git answer.
+  let workspace: GitStudioWorkspace;
+  try {
+    workspace = gitWorkspace(state);
+  } catch (error) {
+    respondGitError(response, error);
+    return;
+  }
   const provider = options.architectureImpactProvider;
   if (provider === undefined) {
-    respondJson(response, 200, {
-      kind: "CommitArchitectureImpactV1",
-      sha,
-      status: "unavailable",
-      elements: [],
-      relationships: [],
-      observedEdges: [],
-      codeHitIds: [],
-      changedHitIds: [],
-      overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
-      dsl: "",
-      error: "Architecture impact host is unavailable in this environment.",
-    });
+    respondJson(response, 200, unavailableImpact(sha, "Architecture impact host is unavailable in this environment."));
     return;
   }
   try {
-    const workspace = gitWorkspace(state);
     const detail = await cachedGitCommit(workspace, sha);
     respondJson(response, 200, await readCommitArchitectureImpact({
       repoRoot: workspace.gitRoot,
       sha,
       detail,
       provider,
+      ...(workspace.architectureImpactCache === undefined ? {} : { cache: workspace.architectureImpactCache }),
     }), { "Cache-Control": "no-store" });
   } catch (error) {
-    respondGitError(response, error);
+    // This pane's contract has three states and no error state, so a reading
+    // that could not be made is `unavailable` carrying its reason. Answering a
+    // status the pane cannot render would only crash the reader's window.
+    respondJson(response, 200, unavailableImpact(sha, error instanceof Error ? error.message : "Architecture impact could not be read."));
   }
+}
+/** A reading this environment cannot make, carrying the reason it could not. */
+function unavailableImpact(sha: string, message: string): ArchitectureImpact {
+  return {
+    kind: "CommitArchitectureImpactV1",
+    sha,
+    status: "unavailable",
+    elements: [],
+    relationships: [],
+    observedEdges: [],
+    codeHitIds: [],
+    changedHitIds: [],
+    overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
+    dsl: "",
+    error: message,
+  };
 }
 async function cachedGitCommit(workspace: GitStudioWorkspace, sha: string): Promise<GitCommitDetail> {
   const cached = workspace.gitCommitCache?.get(sha);

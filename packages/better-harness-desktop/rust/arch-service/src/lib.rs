@@ -171,7 +171,9 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
         "overlay": {
             "changedSymbols": overlay.changed_symbols.len(),
             "impactedSymbols": overlay.impacted_symbols.len(),
-            "impactedFiles": overlay.impacted_files.len(),
+            // Paths, not a count: the Studio contract carries the impacted file
+            // list so a reader can see where the change reached.
+            "impactedFiles": &overlay.impacted_files,
         },
     }))
 }
@@ -222,6 +224,12 @@ mod tests {
         assert_eq!(reply["result"]["facts"][0]["imports"].as_array().unwrap().len(), 1);
         assert!(reply["result"]["snapshot"]["model"]["elements"].as_array().unwrap().is_empty());
         assert!(!reply["result"]["dsl"].as_str().unwrap().is_empty());
+        // The change overlay reports the impacted paths, so a caller never has
+        // to read a count where the contract promises a list.
+        assert_eq!(
+            reply["result"]["overlay"]["impactedFiles"].as_array().unwrap(),
+            &vec![serde_json::json!("/test.js")]
+        );
     }
 
     #[test]

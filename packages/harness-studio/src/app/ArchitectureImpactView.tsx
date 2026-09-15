@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ArchitectureImpact, ArchitectureElement } from "../contracts/architecture-impact.js";
+import { isArchitectureImpact, type ArchitectureImpact, type ArchitectureElement } from "../contracts/architecture-impact.js";
 import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
 
 interface Props {
@@ -36,15 +36,17 @@ export function ArchitectureImpactView({ sha }: Props) {
     setError(null);
     fetch(`/api/git/commits/${sha}/architecture`)
       .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) {
-          if (d.status === "unavailable") {
-            setError(d.error ?? "Architecture impact is unavailable for this commit.");
-          } else {
-            setData(d);
-          }
-          setLoading(false);
+      .then((d: unknown) => {
+        if (cancelled) return;
+        // The reading has three states and no error state, so anything that is
+        // not a reading is reported as one rather than rendered as a diagram
+        // with nothing in it.
+        if (!isArchitectureImpact(d) || d.status === "unavailable") {
+          setError(readingError(d));
+        } else {
+          setData(d);
         }
+        setLoading(false);
       })
       .catch((e) => {
         if (!cancelled) { setError(e.message); setLoading(false); }
@@ -235,4 +237,13 @@ function downloadBlob(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Why this commit has no reading: the server's reason, or the shape it sent. */
+function readingError(payload: unknown): string {
+  if (isArchitectureImpact(payload) && typeof payload.error === "string") return payload.error;
+  if (typeof payload === "object" && payload !== null && typeof (payload as { error?: unknown }).error === "string") {
+    return (payload as { error: string }).error;
+  }
+  return "Architecture impact is unavailable for this commit.";
 }

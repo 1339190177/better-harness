@@ -74,7 +74,8 @@
             "harness-acp-host*",
             "harness-evidence-host*",
             "harness-diff-host*",
-            "harness-diff-service.NOTICES.txt"
+            "harness-diff-service.NOTICES.txt",
+            "harness-arch-host*"
           ]
         }
       ]
@@ -94,7 +95,8 @@
             "harness-acp-host*",
             "harness-evidence-host*",
             "harness-diff-host*",
-            "harness-diff-service.NOTICES.txt"
+            "harness-diff-service.NOTICES.txt",
+            "harness-arch-host*"
           ]
         }
       ]
