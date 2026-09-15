@@ -9,15 +9,44 @@
       "tags": ["system"],
       "parent_id": null
     },
+
     {
       "id": "harness-sdk",
       "name": "Harness SDK & CLI",
       "kind": "Container",
-      "description": "Skill, hook and adapter model plus the analysis, review-trigger and report CLI.",
+      "description": "Skill, hook and adapter model plus the analysis and report tooling.",
       "technology": "TypeScript / Node",
       "tags": ["runtime"],
       "parent_id": "better-harness"
     },
+    {
+      "id": "sdk-model",
+      "name": "Harness Model",
+      "kind": "Component",
+      "description": "Skill, hook, adapter and report schemas that every surface reads.",
+      "technology": "TypeScript",
+      "tags": ["model"],
+      "parent_id": "harness-sdk"
+    },
+    {
+      "id": "analysis-cli",
+      "name": "Analysis & Report CLI",
+      "kind": "Component",
+      "description": "Repository analysis, review trigger and durable report rendering.",
+      "technology": "Node",
+      "tags": ["cli"],
+      "parent_id": "harness-sdk"
+    },
+    {
+      "id": "sdk-skills",
+      "name": "Bundled Skills",
+      "kind": "Component",
+      "description": "Skills the SDK ships for its own workflows.",
+      "technology": "Markdown",
+      "tags": ["assets"],
+      "parent_id": "harness-sdk"
+    },
+
     {
       "id": "harness-studio",
       "name": "Harness Studio",
@@ -28,14 +57,70 @@
       "parent_id": "better-harness"
     },
     {
+      "id": "studio-app",
+      "name": "Workbench UI",
+      "kind": "Component",
+      "description": "Docked views, panes and interaction state for every surface.",
+      "technology": "React",
+      "tags": ["ui"],
+      "parent_id": "harness-studio"
+    },
+    {
+      "id": "studio-server",
+      "name": "Studio Server",
+      "kind": "Component",
+      "description": "Routes, providers and the native host supervision behind them.",
+      "technology": "Node",
+      "tags": ["server"],
+      "parent_id": "harness-studio"
+    },
+    {
+      "id": "studio-contracts",
+      "name": "Studio Contracts",
+      "kind": "Component",
+      "description": "The reading shapes the server answers with and the UI validates.",
+      "technology": "TypeScript",
+      "tags": ["contract"],
+      "parent_id": "harness-studio"
+    },
+
+    {
       "id": "studio-desktop",
       "name": "Studio Desktop Shell",
       "kind": "Container",
-      "description": "Electron shell that hosts the Studio server and owns the staged native capability services.",
+      "description": "Electron shell that hosts the Studio server and owns the staged native services.",
       "technology": "Electron / Rust NSXPC",
       "tags": ["runtime", "native"],
       "parent_id": "better-harness"
     },
+    {
+      "id": "desktop-shell",
+      "name": "Desktop Shell",
+      "kind": "Component",
+      "description": "Window, service host, startup contract and health reporting.",
+      "technology": "Electron",
+      "tags": ["runtime"],
+      "parent_id": "studio-desktop"
+    },
+    {
+      "id": "native-services",
+      "name": "Native Services",
+      "kind": "Component",
+      "description": "OXC, ACP, evidence, diff and architecture hosts, over stdio or NSXPC.",
+      "technology": "Rust",
+      "tags": ["native"],
+      "parent_id": "studio-desktop"
+    },
+    {
+      "id": "packaging",
+      "name": "Native Packaging",
+      "kind": "Component",
+      "description": "Build, stage and sign the native services on both packaging chains.",
+      "technology": "Node / Go",
+      "tags": ["build"],
+      "parent_id": "studio-desktop"
+    },
+
     {
       "id": "harness-ui",
       "name": "Harness UI",
@@ -46,6 +131,16 @@
       "parent_id": "better-harness"
     },
     {
+      "id": "ui-primitives",
+      "name": "UI Primitives",
+      "kind": "Component",
+      "description": "The component library the surfaces render with.",
+      "technology": "React",
+      "tags": ["ui"],
+      "parent_id": "harness-ui"
+    },
+
+    {
       "id": "agent-assets",
       "name": "Agent Assets",
       "kind": "Container",
@@ -55,6 +150,34 @@
       "parent_id": "better-harness"
     },
     {
+      "id": "skills",
+      "name": "Skills",
+      "kind": "Component",
+      "description": "Routed instructions an agent loads on demand.",
+      "technology": "Markdown",
+      "tags": ["assets"],
+      "parent_id": "agent-assets"
+    },
+    {
+      "id": "hooks",
+      "name": "Hooks & Guardrails",
+      "kind": "Component",
+      "description": "Lifecycle hooks that enforce policy and evidence.",
+      "technology": "Node / Shell",
+      "tags": ["assets"],
+      "parent_id": "agent-assets"
+    },
+    {
+      "id": "references",
+      "name": "References",
+      "kind": "Component",
+      "description": "Deep evidence material a skill reaches for.",
+      "technology": "Markdown",
+      "tags": ["assets"],
+      "parent_id": "agent-assets"
+    },
+
+    {
       "id": "documentation",
       "name": "Documentation & Specs",
       "kind": "Container",
@@ -62,46 +185,129 @@
       "technology": "Docusaurus / Markdown",
       "tags": ["docs"],
       "parent_id": "better-harness"
+    },
+    {
+      "id": "docs-site",
+      "name": "Docs Site",
+      "kind": "Component",
+      "description": "The published documentation build.",
+      "technology": "Docusaurus",
+      "tags": ["docs"],
+      "parent_id": "documentation"
+    },
+    {
+      "id": "specs",
+      "name": "Specs & ADRs",
+      "kind": "Component",
+      "description": "The decisions and acceptance scenarios a change is read against.",
+      "technology": "Markdown",
+      "tags": ["docs"],
+      "parent_id": "documentation"
+    },
+    {
+      "id": "architecture-models",
+      "name": "Architecture Models",
+      "kind": "Component",
+      "description": "The models this pane and the docs are drawn from.",
+      "technology": "Markdown",
+      "tags": ["docs"],
+      "parent_id": "documentation"
     }
   ],
   "relationships": [
     {
-      "id": "desktop-hosts-studio",
-      "source_id": "studio-desktop",
+      "id": "shell-supervises-server",
+      "source_id": "desktop-shell",
+      "target_id": "studio-server",
+      "description": "spawns and supervises",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "app-reads-server",
+      "source_id": "studio-app",
+      "target_id": "studio-server",
+      "description": "reads the workbench API",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "app-renders-primitives",
+      "source_id": "studio-app",
+      "target_id": "ui-primitives",
+      "description": "renders with",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "server-answers-contracts",
+      "source_id": "studio-server",
+      "target_id": "studio-contracts",
+      "description": "answers in",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "server-calls-native",
+      "source_id": "studio-server",
+      "target_id": "native-services",
+      "description": "calls staged hosts",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "server-reads-model",
+      "source_id": "studio-server",
+      "target_id": "sdk-model",
+      "description": "reads the harness model",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "server-inspects-assets",
+      "source_id": "studio-server",
+      "target_id": "skills",
+      "description": "inspects installed assets",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "cli-analyses-with-model",
+      "source_id": "analysis-cli",
+      "target_id": "sdk-model",
+      "description": "analyses with",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "hooks-enforce-skills",
+      "source_id": "hooks",
+      "target_id": "skills",
+      "description": "enforces alongside",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "specs-specify-model",
+      "source_id": "specs",
+      "target_id": "sdk-model",
+      "description": "specifies",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "docs-publish-specs",
+      "source_id": "docs-site",
+      "target_id": "specs",
+      "description": "publishes",
+      "technology": null,
+      "kind": "DeclaredRelationship"
+    },
+    {
+      "id": "models-describe-containers",
+      "source_id": "architecture-models",
       "target_id": "harness-studio",
-      "description": "spawns and supervises the Studio server",
-      "technology": null,
-      "kind": "DeclaredRelationship"
-    },
-    {
-      "id": "studio-uses-sdk",
-      "source_id": "harness-studio",
-      "target_id": "harness-sdk",
-      "description": "reads the harness model through the SDK",
-      "technology": null,
-      "kind": "DeclaredRelationship"
-    },
-    {
-      "id": "studio-renders-ui",
-      "source_id": "harness-studio",
-      "target_id": "harness-ui",
-      "description": "renders workbench surfaces",
-      "technology": null,
-      "kind": "DeclaredRelationship"
-    },
-    {
-      "id": "studio-reads-assets",
-      "source_id": "harness-studio",
-      "target_id": "agent-assets",
-      "description": "inspects installed skills, hooks and references",
-      "technology": null,
-      "kind": "DeclaredRelationship"
-    },
-    {
-      "id": "docs-describe-assets",
-      "source_id": "documentation",
-      "target_id": "agent-assets",
-      "description": "documents the shipped assets",
+      "description": "draws this pane",
       "technology": null,
       "kind": "DeclaredRelationship"
     }

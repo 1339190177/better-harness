@@ -2369,15 +2369,34 @@
 .arch-btn { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-btn:hover { background: var(--color-surface-hover); }
 .arch-canvas { overflow: auto; padding: var(--space-md); }
-.arch-svg { display: block; min-width: 400px; }
+/* The diagram is drawn at its measured size so a narrow pane scrolls it rather
+   than shrinking it below reading size. */
+.arch-svg { display: block; }
 .arch-loading { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-lg); color: var(--color-text-muted); }
 .arch-error { padding: var(--space-lg); color: var(--color-danger); }
-.arch-box-default { fill: var(--color-surface); stroke: var(--color-primary); stroke-width: 2; }
-.arch-box-observed { fill: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)); stroke: var(--color-primary); stroke-width: 2; }
-.arch-box-changed { fill: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface)); stroke: var(--color-danger); stroke-width: 3; }
+/* A boundary is a container or system, so it reads as a frame its contents sit
+   inside rather than as another box beside them. */
+.arch-boundary { fill: color-mix(in srgb, var(--color-surface) 45%, transparent); stroke: var(--color-border-strong); stroke-width: 1; stroke-dasharray: 4 3; }
+.arch-boundary-changed { fill: color-mix(in srgb, var(--color-danger) 8%, transparent); stroke: var(--color-danger); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.arch-boundary-title { fill: var(--color-text-muted); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
+.arch-boundary-title-changed { fill: var(--color-danger); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
+.arch-box { fill: var(--color-surface); stroke: var(--color-border-strong); stroke-width: 1; }
+.arch-box-default .arch-box { stroke: var(--color-primary); stroke-width: 2; }
+.arch-box-observed .arch-box { fill: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)); stroke: var(--color-primary); stroke-width: 2; }
+.arch-box-changed .arch-box { fill: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface)); stroke: var(--color-danger); stroke-width: 2.5; }
 .arch-label { fill: var(--color-text); font-size: var(--type-meta-size); font-family: var(--font-ui); }
 .arch-kind { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); }
-.arch-edge-declared { stroke: var(--color-border); stroke-width: 1.5; }
+.arch-edge-declared { stroke: var(--color-border-strong); stroke-width: 1.5; }
 .arch-edge-observed { stroke: var(--color-warning); stroke-width: 1.5; stroke-dasharray: 5 3; }
+/* A label sits on a line that often crosses a box, so it carries the pane's own
+   colour as a halo rather than relying on the box behind it. */
+.arch-edge-label { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; stroke-linejoin: round; }
+.arch-arrow-declared { fill: var(--color-border-strong); }
+.arch-arrow-observed { fill: var(--color-warning); }
+/* Legend entries reuse the diagram's own classes, so a swatch cannot drift from
+   the encoding it explains. */
+.arch-legend-title { fill: var(--color-text); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
+.arch-legend-label { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); }
+.arch-legend-note { fill: var(--color-text-subtle); font-size: 10px; font-family: var(--font-ui); }
 .arch-toggle { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-toggle:hover { background: var(--color-surface-hover); }

@@ -1,19 +1,39 @@
 [
   { "path_glob": "packages/harness-studio/**", "element_id": "harness-studio" },
+  { "path_glob": "packages/harness-studio/src/app/**", "element_id": "studio-app" },
+  { "path_glob": "packages/harness-studio/src/server/**", "element_id": "studio-server" },
+  { "path_glob": "packages/harness-studio/src/contracts/**", "element_id": "studio-contracts" },
+
   { "path_glob": "packages/better-harness-desktop/**", "element_id": "studio-desktop" },
+  { "path_glob": "packages/better-harness-desktop/src/**", "element_id": "desktop-shell" },
+  { "path_glob": "packages/better-harness-desktop/rust/**", "element_id": "native-services" },
+  { "path_glob": "packages/better-harness-desktop/scripts/**", "element_id": "packaging" },
+
   { "path_glob": "packages/harness-ui/**", "element_id": "harness-ui" },
+  { "path_glob": "packages/harness-ui/src/**", "element_id": "ui-primitives" },
+
   { "path_glob": "packages/harness/src/**", "element_id": "harness-sdk" },
-  { "path_glob": "packages/harness/scripts/**", "element_id": "harness-sdk" },
   { "path_glob": "packages/harness/skills/**", "element_id": "harness-sdk" },
+  { "path_glob": "packages/harness/scripts/**", "element_id": "harness-sdk" },
   { "path_glob": "packages/harness/test/**", "element_id": "harness-sdk" },
-  { "path_glob": "scripts/**", "element_id": "harness-sdk" },
-  { "path_glob": "skills/**", "element_id": "agent-assets" },
-  { "path_glob": "hooks/**", "element_id": "agent-assets" },
-  { "path_glob": "references/**", "element_id": "agent-assets" },
-  { "path_glob": "templates/**", "element_id": "agent-assets" },
-  { "path_glob": ".agents/**", "element_id": "agent-assets" },
-  { "path_glob": "prompts/**", "element_id": "agent-assets" },
-  { "path_glob": "docs/**", "element_id": "documentation" },
-  { "path_glob": "models/**", "element_id": "documentation" },
-  { "path_glob": "case-studies/**", "element_id": "documentation" }
+  { "path_glob": "packages/harness/examples/**", "element_id": "harness-sdk" },
+  { "path_glob": "packages/harness/src/**", "element_id": "sdk-model" },
+  { "path_glob": "packages/harness/skills/**", "element_id": "sdk-skills" },
+  { "path_glob": "packages/harness/scripts/**", "element_id": "analysis-cli" },
+  { "path_glob": "scripts/**", "element_id": "analysis-cli" },
+
+  { "path_glob": "hooks/**", "element_id": "hooks" },
+  { "path_glob": "references/**", "element_id": "references" },
+  { "path_glob": "templates/**", "element_id": "skills" },
+  { "path_glob": ".agents/**", "element_id": "skills" },
+  { "path_glob": "prompts/**", "element_id": "skills" },
+  { "path_glob": "skills/**", "element_id": "skills" },
+
+  { "path_glob": "docs/docs/**", "element_id": "docs-site" },
+  { "path_glob": "docs/specs/**", "element_id": "specs" },
+  { "path_glob": "docs/adrs/**", "element_id": "specs" },
+  { "path_glob": "case-studies/**", "element_id": "specs" },
+  { "path_glob": "models/**", "element_id": "architecture-models" },
+  { "path_glob": ".better-harness/architecture/**", "element_id": "architecture-models" },
+  { "path_glob": "docs/**", "element_id": "documentation" }
 ]

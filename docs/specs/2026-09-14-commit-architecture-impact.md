@@ -255,6 +255,13 @@ replace the Artifact provider lane.
   host, the per-file bound is aligned to the host's `MAX_FILE_BYTES`, and the reading cache is
   keyed by commit plus worktree path digest.
 
+- AC-4 (Rendering, task 15 in part): the pane draws the C4 shape rather than a row of
+  boxes — a boundary per system/container with its children nested inside, each layer centred
+  and sized from its own widest row, arrowed edges labelled with the declared relationship, and
+  a legend whose swatches reuse the diagram's own markup. `Export .svg` resolves the computed
+  paint onto the cloned nodes, because an exported file that depends on the app's stylesheet
+  arrives as an unreadable black rectangle in every other viewer.
+
 ### Verified by
 
 - `npx vitest run` in `packages/harness-studio` (90 files, 696 tests), including the new
@@ -263,9 +270,11 @@ replace the Artifact provider lane.
 - `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
   commit read through the real provider over both `stdio` and the macOS NSXPC bridge, publishing
   a declared model and asserting the projection comes back with that element marked changed.
-- A dev-shell probe over this repository: `fbba212d` answers `status: "impact"`, 7 elements,
-  114 changed symbols, with the pane rendering the model and marking Harness Studio, Studio
-  Desktop Shell and Documentation as changed.
+- A dev-shell probe over this repository: `fbba212d` answers `status: "impact"`, 23 elements,
+  12 edges, 114 changed symbols, drawing the declared system → containers → components tree
+  with Harness Studio, Studio Desktop Shell and Documentation marked changed; the same probe
+  exports the pane's SVG and renders it in a plain browser, and a 390px viewport keeps the page
+  itself free of overflow (the canvas scrolls).
 - `npm test` in `packages/better-harness-desktop` (10 tests) for the versioned start contract and
   `npm run smoke -w @qoder-ai/better-harness-desktop` for the Electron receipt
   (`nativeProof.archRuntime: "arch-v1-nsxpc"`, `archPid` distinct from `archBridgePid`).
@@ -277,9 +286,12 @@ replace the Artifact provider lane.
   shape) and `bindings.json`; a tracked `*.dsl` or workspace JSON is reported as an unreadable
   declared model, named in the pane, rather than translated. Translating those dialects — and
   reading their relationships, views and tags faithfully — is the remaining half of task 12.
-- `dagre` layout, export round-trip and the four-pane browser evidence (tasks 16-18, 23).
-  The pane's own hand-rolled layout is what it is today; it now sizes the canvas from the widest
-  layer and centres each layer, which a one-root model needs to show its containers at all.
+- `dagre` layout and the four-pane browser evidence (tasks 16-18, 23). The pane's own layout is
+  hierarchical and bounded, but it has no rank/flow ordering: edges cross boundaries and are not
+  routed around boxes.
+- The impact radius. `arch-core` builds its symbol graph from the changed files alone, so
+  "impacted" only counts callers that this commit also changed and reads 0 for most commits.
+  A bounded one-hop expansion over the tracked importers of each changed file is the next step.
 - Authoring a model is content, not code: this repository ships one under
   `.better-harness/architecture/` so its own commits can be read in the pane.
 
