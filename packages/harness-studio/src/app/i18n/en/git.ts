@@ -99,6 +99,16 @@ export const git = {
     failed: "The structural diff could not be computed.",
     label: "Structural diff: {{path}}",
   },
+  impact: {
+    aria: "Architecture impact",
+    commits: "Commits",
+    search: "Filter subject, hash, or author",
+    loading: "Loading commits…",
+    empty: "This repository has no commit to choose from.",
+    pick: "Choose a commit to project onto the declared model.",
+    hostUnavailable: "The architecture host is not staged in this environment, so there is nothing to project.",
+    selected: "Selected commit",
+  },
   errors: {
     refsUnavailable: "Git refs are unavailable.",
     historyUnavailable: "Git history is unavailable.",

@@ -281,6 +281,7 @@ async function route(
       gitEnabled: state.workspace?.gitRoot !== undefined,
       sessionPerformanceEnabled: options.sessionPerformanceProvider !== undefined,
       structuralDiffEnabled: options.structuralDiffProvider !== undefined,
+      architectureImpactEnabled: options.architectureImpactProvider !== undefined,
       workspaceWorkbenchEnabled: state.workspace?.inspectorReport !== undefined,
       workspaceDiscoveryEnabled: options.workspaceSessionProvider !== undefined,
       workspaceConnected: state.workspace !== undefined,

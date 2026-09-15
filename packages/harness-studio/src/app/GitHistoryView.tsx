@@ -36,7 +36,6 @@ import { StructuralDiffView } from "./code/StructuralDiffView.js";
 import { studioLocale } from "./i18n/index.js";
 import { PaneSash } from "./shell/PaneSash.js";
 import { ToolbarActions } from "./shell/ToolbarActions.js";
-import { ArchitectureImpactView } from "./ArchitectureImpactView.js";
 
 const PAGE_SIZE = 40;
 /** The native host was never reachable, which is an environment fact, not a file fact. */
@@ -45,7 +44,6 @@ const GIT_LANE_COLOR_TOKENS = [5, 4, 2, 1, 6, 7, 3] as const;
 type NarrowPane = "refs" | "history" | "detail" | "architecture";
 /** Which reading of a file's change the detail pane is showing. */
 type DiffMode = "textual" | "structural";
-type DetailPaneMode = "files" | "architecture";
 /** Everything the detail pane needs to offer and render the structural reading. */
 interface StructuralPanel {
   enabled: boolean;
@@ -98,7 +96,6 @@ export function GitHistoryView(props: { dateRange: StudioDateRange; structuralDi
   const [selectedFile, setSelectedFile] = useState<string>();
   const [patch, setPatch] = useState<GitFilePatch>();
   const [diffMode, setDiffMode] = useState<DiffMode>("textual");
-    const [detailMode, setDetailMode] = useState<DetailPaneMode>("files");
   const [structural, setStructural] = useState<StructuralDiff>();
   const [structuralLoading, setStructuralLoading] = useState(false);
   const [structuralFailure, setStructuralFailure] = useState<string>();
@@ -492,16 +489,14 @@ export function GitHistoryView(props: { dateRange: StudioDateRange; structuralDi
       onSize={setLogHeight}
     />
     <section className="git-detail-pane" aria-label={t("detail.aria")}>
-      <PaneHeader title={t("detail.title")} trailing={activeCommit?.shortSha} action={activeCommit ? <button type="button" className="arch-toggle" onClick={() => setDetailMode(detailMode === "architecture" ? "files" : "architecture")}>{detailMode === "architecture" ? "Files" : "Architecture"}</button> : undefined} />
+      <PaneHeader title={t("detail.title")} trailing={activeCommit?.shortSha} />
       {detailLoading
         ? <LoadingState label={t("detail.loadingCommit")} />
         : detailFailure !== undefined && detail === undefined
           ? <ErrorState message={detailFailure} />
           : detail === undefined
             ? <div className="git-detail-empty"><GitCommit aria-hidden="true" size={24} /><p>{t("detail.selectHint")}</p></div>
-            : detailMode === "architecture"
-              ? <ArchitectureImpactView sha={selectedSha!} />
-              : <CommitDetail detail={detail} selectedFile={selectedFile} patch={patch} patchLoading={patchLoading} failure={detailFailure} stacked={stacked} structural={{ enabled: props.structuralDiffEnabled, mode: diffMode, result: structural, loading: structuralLoading, failure: structuralFailure, notice: structuralNotice, onChange: changeDiffMode }} onSelectFile={(file) => void selectFile(file)} />}
+            : <CommitDetail detail={detail} selectedFile={selectedFile} patch={patch} patchLoading={patchLoading} failure={detailFailure} stacked={stacked} structural={{ enabled: props.structuralDiffEnabled, mode: diffMode, result: structural, loading: structuralLoading, failure: structuralFailure, notice: structuralNotice, onChange: changeDiffMode }} onSelectFile={(file) => void selectFile(file)} />}
     </section>
   </main>;
 }

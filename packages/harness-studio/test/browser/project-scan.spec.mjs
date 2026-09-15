@@ -62,9 +62,9 @@ for (const theme of ["light", "dark"]) for (const layout of layouts) {
       // discloses its children.
       const viewNames = await page.locator(".studio-project-views button strong").allTextContents();
       expect(viewNames).toEqual([
-        "Sessions", "Overview", "Performance", "Commits",
-        "Artifacts", "Debugger", "Compare", "Memory",
+        "Sessions", "Overview", "Performance", "Commits", "Impact",
         "Customizations", "Plugins", "MCP Servers", "Skills", "Instructions", "Agents", "Hooks", "Commands",
+        "Memory", "Compare", "Debugger", "Artifacts",
       ]);
       await expect(page.getByRole("button", { name: "Show or hide Sessions views", includeHidden: true })).toHaveAttribute("aria-expanded", "true");
 

@@ -100,11 +100,11 @@ replace the Artifact provider lane.
   change overlay, and the impact radius. When the host is absent or no declared
   model is discovered, the route answers **unavailable**, not an empty
   projection a reader would read as "no impact".
-- **AC-4** The commit workbench gains a fourth pane. Wide layouts are
-  `refs | log | detail | architecture` with a resizable sash, and element
-  identity and position stay stable while the selection moves between commits in
-  the same area. Narrow layout gains a fourth tab. Keyboard focus, bounded
-  overflow, console/page errors, and light/dark screenshots are verified.
+- **AC-4** The projection is a destination of its own in the sidebar's Daily section, next to
+  Commits: a commit chooser with search beside it, and the diagram filling the rest of the
+  surface at wide, compact and narrow widths, with keyboard focus, bounded overflow, and no
+  console or page errors. Commits keeps history: its detail pane reads files and carries no
+  projection toggle.
 - **AC-5** The pane exports `.dsl` and `.svg` for the current projection, and the
   exported `.dsl` re-parses into the same element and relationship set
   (round-trip asserted on the parsed model, not on emitted text).
@@ -189,8 +189,12 @@ replace the Artifact provider lane.
 
 ### Studio UI
 
-15. Fourth pane in `GitHistoryView.tsx` with `PaneSash`, plus a fourth narrow tab;
-    grid column and sash styles under the shared tokens in `workbench.css`.
+15. The projection is a **destination of its own** (`ImpactView.tsx`), reached from the sidebar:
+    a commit chooser with search on the left and the projection filling the rest. The fourth
+    pane this task first described is **superseded**: sharing the commit detail pane left the
+    diagram a third of its height and competed with the file reading, and the two questions —
+    what did this commit change, and what did the project's architecture reach — draw
+    differently. The history workbench keeps history only.
 16. `dagre` layout with stable node identity and position; the hot path updates
     colour, edges, counts and evidence only. A full relayout happens only when
     the structure actually changed.
@@ -284,9 +288,17 @@ replace the Artifact provider lane.
   exits during the request. Files in a language v1 does not extract are reported in `omitted`
   with their diagnostics rather than dropped silently.
 
+- AC-4 (Surface): the projection moved out of the commit workbench into `ImpactView.tsx` on its
+  own route (`#/impact`), a sidebar row with an icon, and a capability line of its own
+  (`architectureImpactEnabled`); `GitHistoryView` lost the toggle and the pane. The browser spec
+  `test/browser/impact.spec.mjs` holds the two apart: the chooser opens on the newest commit,
+  picking another re-reads it, search narrows the chooser, an element card opens and closes,
+  zoom survives `Fit`, and no projection remains inside the history workbench — at the suite's
+  narrow viewport the chooser stacks over the diagram without a page overflow.
+
 ### Verified by
 
-- `npx vitest run` in `packages/harness-studio` (90 files, 696 tests), including the new
+- `npx vitest run` in `packages/harness-studio` (90 files, 707 tests), including the new
   `test/architecture-impact.test.ts`: host-absent `unavailable`, provider mapping and refusal
   classification, cache reuse, and a failed host reported as `unavailable` with its reason.
 - `npx vitest run --config vitest.native.config.ts test/architecture-impact.native.ts`: a real
@@ -312,7 +324,7 @@ replace the Artifact provider lane.
   shape) and `bindings.json`; a tracked `*.dsl` or workspace JSON is reported as an unreadable
   declared model, named in the pane, rather than translated. Translating those dialects — and
   reading their relationships, views and tags faithfully — is the remaining half of task 12.
-- `dagre` layout and the four-pane browser evidence (tasks 16, 18, 23). The pane's own layout is
+- `dagre` layout and the export round trip (tasks 16, 18). The pane's own layout is
   hierarchical and bounded, but it has no rank/flow ordering: edges cross boundaries and are not
   routed around boxes.
 - The radius is one hop, and it is reported per element. Coarse bindings — one element per
@@ -340,8 +352,11 @@ replace the Artifact provider lane.
 - **Decision**: v1 is JavaScript/TypeScript through OXC. This is the language set
   `blast-radius` covers best and the one Studio edits most; the cost is honest
   `unsupported-language` diagnostics for everything else.
-- **Decision**: the fourth pane attaches to the commit workbench, not to the
-  Artifacts workspace. The reader's question is about the commit they selected.
+- **Decision (superseded)**: the fourth pane attaches to the commit workbench, not to the
+  Artifacts workspace. The reader's question is about the commit they selected. **Superseded by
+  the Impact surface**: the question is still about a commit, but a projection that shares a
+  detail pane with the file reading is neither readable nor comfortably selected — the surface
+  owns its own commit chooser instead, and Commits loses the pane it never fitted.
 - **Risk**: `arch-core` and `blast-radius` will both resolve imports until the
   core is proven equivalent. Two resolvers can disagree. Mitigation: the hook
   source in AC-6 does not use the core at all, and replacing `blast-radius` is

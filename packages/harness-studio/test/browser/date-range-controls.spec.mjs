@@ -24,7 +24,8 @@ for (const theme of ['light', 'dark']) {
       const to = page.getByLabel('To', { exact: true });
       await from.fill('2026-08-01');
       await to.fill('2026-09-08');
-      await page.getByRole('heading', { name: 'Views', exact: true }).click();
+      // Clicking a section heading is the "elsewhere" gesture: the range must survive it.
+      await page.getByRole('heading', { name: 'Daily', exact: true }).click();
       await expect(preset).toHaveValue('custom');
       await expect(page.getByRole('group', { name: 'Custom range' })).toBeVisible();
       await expect(page.locator('.studio-date-range-summary')).toHaveCount(0);

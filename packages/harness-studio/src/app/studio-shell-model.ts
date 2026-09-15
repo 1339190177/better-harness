@@ -7,6 +7,7 @@ export type StudioArea =
   | "session-performance"
   | "sessions"
   | "commits"
+  | "impact"
   | "artifacts"
   | "debugger"
   | "compare";
@@ -54,6 +55,8 @@ export interface StudioConfig {
   sessionPerformanceEnabled?: boolean;
   /** Whether a native structural-diff host is staged, so the commit view can offer both readings. */
   structuralDiffEnabled?: boolean;
+  /** Whether a native architecture host is staged, so the Impact surface has something to read. */
+  architectureImpactEnabled?: boolean;
   runEnabled: boolean;
   acpEnabled: boolean;
   acpAgentLabel?: string;
@@ -136,6 +139,9 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
             : compareScope === "insufficient"
               ? t("destination.secondAgentRequired")
               : t("destination.singleAgentOnly");
+  const impactStatus = (): string => config.gitEnabled
+    ? config.architectureImpactEnabled ? t("destination.architectureModel") : t("destination.architectureHostUnavailable")
+    : config.workspaceConnected ? t("destination.notGitRepository") : t("destination.workspaceRequired");
 
   // Rows are ordered by the sidebar section they belong to. Daily reading —
   // Sessions and its sub-routes, then the Customizations catalog — comes first;
@@ -160,6 +166,18 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
       group: t("group.daily"),
       availability: config.gitEnabled ? "ready" : config.workspaceConnected ? "partial" : "foundation",
       status: config.gitEnabled ? t("destination.repositoryHistory") : config.workspaceConnected ? t("destination.notGitRepository") : t("destination.workspaceRequired"),
+    },
+    {
+      // A surface of its own rather than a pane inside Commits: the projection
+      // needs the whole pane it is drawn in, and reading history is a different
+      // question from asking what one commit moved.
+      id: "impact",
+      label: t("area.impact"),
+      group: t("group.daily"),
+      availability: config.gitEnabled
+        ? config.architectureImpactEnabled ? "ready" : "partial"
+        : config.workspaceConnected ? "partial" : "foundation",
+      status: impactStatus(),
     },
     {
       id: "customizations",

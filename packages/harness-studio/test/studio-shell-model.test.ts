@@ -54,6 +54,18 @@ const EMPTY: StudioConfig = {
 };
 
 describe("Studio control-plane navigation", () => {
+  it("says whether the Impact surface has a host to project with", () => {
+    const repository = { ...EMPTY, gitEnabled: true };
+    expect(studioDestinations(repository, undefined, commonT).find((destination) => destination.id === "impact")).toMatchObject({
+      availability: "partial",
+      status: "Architecture host unavailable",
+    });
+    expect(studioDestinations({ ...repository, architectureImpactEnabled: true }, undefined, commonT).find((destination) => destination.id === "impact")).toMatchObject({
+      availability: "ready",
+      status: "Project a commit onto the model",
+    });
+  });
+
   it("offers global Memory and the existing workbenches with honest availability", () => {
     const destinations = studioDestinations(EMPTY, undefined, commonT);
 
@@ -61,6 +73,7 @@ describe("Studio control-plane navigation", () => {
       "sessions",
       "session-performance",
       "commits",
+      "impact",
       "customizations",
       "memory",
       "compare",
@@ -89,7 +102,11 @@ describe("Studio control-plane navigation", () => {
       availability: "foundation",
       status: "Project required",
     });
-    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 5 });
+    expect(destinations.find((destination) => destination.id === "impact")).toMatchObject({
+      availability: "foundation",
+      status: "Project required",
+    });
+    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 6 });
     expect(studioProjectGateRequired({ ...EMPTY, workspaceDiscoveryEnabled: true }, false, "memory-sources")).toBe(false);
   });
 
@@ -128,7 +145,9 @@ describe("Studio control-plane navigation", () => {
       availability: "ready",
       status: "12 definitions",
     });
-    expect(capabilitySummary(config, commonT)).toEqual({ ready: 7, partial: 0, foundation: 1 });
+    // Impact stays partial here: the fixture has a repository but no staged
+    // architecture host, which is exactly what that availability means.
+    expect(capabilitySummary(config, commonT)).toEqual({ ready: 7, partial: 1, foundation: 1 });
   });
 
   it("treats an artifact directory as independent of every other input", () => {

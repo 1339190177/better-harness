@@ -283,6 +283,7 @@ describe("harness-studio server", () => {
       sessionCount: 0,
       sessionPerformanceEnabled: false,
       structuralDiffEnabled: false,
+      architectureImpactEnabled: false,
       sessionAgents: [],
       inputCount: 0,
       intentAnalysisEnabled: false,

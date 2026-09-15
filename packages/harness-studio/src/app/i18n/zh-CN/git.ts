@@ -101,6 +101,16 @@ export const git: typeof enGit = {
     failed: "无法计算结构化差异。",
     label: "结构化差异：{{path}}",
   },
+  impact: {
+    aria: "架构影响",
+    commits: "提交",
+    search: "按主题、哈希或作者过滤",
+    loading: "正在加载提交…",
+    empty: "此仓库没有可选择的提交。",
+    pick: "选择一个提交，投影到已声明模型上。",
+    hostUnavailable: "当前环境未提供架构主机，没有可投影的内容。",
+    selected: "已选提交",
+  },
   errors: {
     refsUnavailable: "Git 引用不可用。",
     historyUnavailable: "Git 历史不可用。",

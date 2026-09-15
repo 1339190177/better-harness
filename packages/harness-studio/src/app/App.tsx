@@ -17,6 +17,7 @@ import { CustomizationView } from "./CustomizationView.js";
 import { MemoryView } from "./MemoryView.js";
 import { ExperimentView } from "./experiment/ExperimentView.js";
 import { GitHistoryView } from "./GitHistoryView.js";
+import { ImpactView } from "./ImpactView.js";
 import { RunView } from "./run/RunView.js";
 import { SessionTranscript } from "./session/SessionTranscript.js";
 import {
@@ -74,6 +75,7 @@ const STUDIO_AREAS: readonly StudioArea[] = [
   "sessions",
   "session-performance",
   "commits",
+  "impact",
   "artifacts",
   "debugger",
   "compare",
@@ -679,13 +681,14 @@ export function App(): React.JSX.Element {
           ? <CustomizationView key={`customizations-${workspaceRevision}`} category={customizationCategory} analysis={customizationCatalog.analysis} loading={customizationCatalog.loading} busy={customizationCatalog.busy} failure={customizationCatalog.failure} onAnalyze={() => void customizationCatalog.analyze()} />
           : <EmptyWorkspace eyebrow={t("customize:empty.eyebrow")} title={t("customize:empty.titleConnected")} detail={t("customize:empty.detailConnected")} />)}
         {area === "commits" && (config.gitEnabled ? <GitHistoryView key={`commits-${workspaceRevision}`} dateRange={dateRange} structuralDiffEnabled={config.structuralDiffEnabled === true} /> : <EmptyWorkspace eyebrow={t("git:empty.eyebrow")} title={config.workspaceConnected ? t("git:empty.titleConnected") : t("git:empty.titleDisconnected")} detail={config.workspaceConnected ? t("git:empty.detailConnected") : projectDiscoveryDetail} action={openProjectAction} />)}
+        {area === "impact" && (config.gitEnabled ? <ImpactView key={`impact-${workspaceRevision}`} hostAvailable={config.architectureImpactEnabled === true} /> : <EmptyWorkspace eyebrow={t("git:empty.eyebrow")} title={config.workspaceConnected ? t("git:empty.titleConnected") : t("git:empty.titleDisconnected")} detail={config.workspaceConnected ? t("git:empty.detailConnected") : projectDiscoveryDetail} action={openProjectAction} />)}
         {area === "artifacts" && <ArtifactsWorkspace key={`artifacts-${dataRevision}-${workspaceRevision}-${config.artifactsEnabled}-${dateScopeKey}`} dateRange={dateRange} config={config} />}
         {area === "debugger" && <DebuggerWorkspace config={config} openProjectAction={openProjectAction} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         {area === "compare" && <CompareWorkspace key={`compare-${dataRevision}-${workspaceRevision}-${config.experimentEnabled}-${config.evidenceEnabled}`} config={config} surface={effectiveCompareSurface} navigation={null} sessionIds={sessionCompareIds} openProjectAction={openProjectAction} onOpenSessions={() => openArea("sessions")} onOpenSession={(id) => { setSessionOpenId(id); openArea("sessions"); }} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         </>}
       </div>
       {area === "debugger" ? <footer className="studio-status-bar"><strong>{activeProject?.label}</strong><div id="studio-debugger-status" /></footer> : <StatusBar
-        scope={area === "memory" || area === "memory-sources" ? t('area.memory') : activeProject?.label ?? (sources.length > 0 ? t("contextBar.configuredSources") : t("statusBar.noProject"))}
+        scope={area === "memory" || area === "memory-sources" ? t('area.memory') : area === "impact" ? t('area.impact') : activeProject?.label ?? (sources.length > 0 ? t("contextBar.configuredSources") : t("statusBar.noProject"))}
         status={area === "memory-sources" || area === "memory" ? t("memory.readonly") : dateRange.preset !== "all" && (area === "sessions" || area === "artifacts" || area === "compare") ? "" : current.status}
         config={config}
         dateRange={dateRange}

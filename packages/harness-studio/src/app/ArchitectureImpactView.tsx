@@ -5,6 +5,8 @@ import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
 
 interface Props {
   sha: string;
+  /** Optional short sha, so a surface that owns the commit selection can show it. */
+  label?: string;
 }
 
 interface DiagramBox {
@@ -57,7 +59,7 @@ const MAX_SCALE = 4;
 const MIN_SCALE = 0.15;
 const POPUP_W = 296;
 
-export function ArchitectureImpactView({ sha }: Props) {
+export function ArchitectureImpactView({ sha, label }: Props) {
   const [data, setData] = useState<ArchitectureImpact | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +232,7 @@ export function ArchitectureImpactView({ sha }: Props) {
 
   return (
     <div className="arch-pane" data-arch-sha={sha}>
-      <div className="arch-header"><strong>Architecture Impact</strong><span>{data.elements.length} elements · {edges.length} edges</span></div>
+      <div className="arch-header"><strong>Architecture Impact</strong><span>{label === undefined ? undefined : `${label} · `}{data.elements.length} elements · {edges.length} edges</span></div>
       <div className="arch-toolbar">
         <span className="arch-summary">
           {data.overlay.changedSymbols > 0

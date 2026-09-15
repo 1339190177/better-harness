@@ -13,6 +13,7 @@ import { CaretUpDown } from "@phosphor-icons/react/CaretUpDown";
 import { Flask } from "@phosphor-icons/react/Flask";
 import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
 import { GitBranch } from "@phosphor-icons/react/GitBranch";
+import { Graph } from "@phosphor-icons/react/Graph";
 import { Lightbulb } from "@phosphor-icons/react/Lightbulb";
 import { Lightning } from "@phosphor-icons/react/Lightning";
 import { Package } from "@phosphor-icons/react/Package";
@@ -36,6 +37,7 @@ const VIEW_ICONS: Record<StudioArea, Icon> = {
   sessions: Binoculars,
   "session-performance": Gauge,
   commits: GitBranch,
+  impact: Graph,
   artifacts: Package,
   debugger: BugBeetle,
   compare: Flask,
