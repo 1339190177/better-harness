@@ -2415,6 +2415,14 @@
    one without competing with the element count for the header's flexible span. */
 .arch-header .arch-badge { flex: 0 0 auto; min-width: 0; overflow: visible; padding: 1px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-pill, 999px); background: var(--color-surface); color: var(--color-text-muted); font-size: var(--type-meta-size); white-space: nowrap; }
 .arch-save-note { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); font-size: var(--type-meta-size); }
+/* The AI model-generation panel docks under the toolbar, above the diagram, and
+   is bounded so the conversation scrolls inside it rather than growing the pane. */
+.arch-agent-panel { display: flex; flex-direction: column; gap: var(--space-sm); max-height: 46%; overflow: auto; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+.arch-agent-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.arch-agent-toolbar strong { color: var(--color-text); }
+.arch-agent-toolbar button { border: none; background: transparent; color: var(--color-text-muted); cursor: pointer; padding: 2px; }
+.arch-agent-intro { margin: 0; color: var(--color-text-muted); font-size: var(--type-meta-size); }
+.arch-agent-intro code { font-family: var(--font-mono, monospace); }
 .arch-canvas { position: relative; overflow: hidden; padding: 0; cursor: grab; }
 .arch-canvas:active { cursor: grabbing; }
 /* The diagram is drawn into a measured viewport, so a docked pane can fit it

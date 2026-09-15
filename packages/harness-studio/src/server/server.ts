@@ -62,6 +62,7 @@ import {
 } from "./workspace/routes.js";
 import { loadStoredProjects } from "./workspace/project-store.js";
 import { serveGitCommit, serveGitFilePatch, serveGitLog, serveGitRefs, serveGitStructuralDiff, serveGitArchitectureImpact, serveGitArchitectureModelSave } from "./git/routes.js";
+import { architectureAcpRoute } from "./architecture-acp.js";
 import {
   abortArtifactImport,
   allowArtifactRead,
@@ -259,6 +260,7 @@ async function route(
   const url = new URL(request.url ?? "/", "http://localhost");
   if (await sessionPerformanceRoute(request, response, state, options)) return;
   if (await memoryRoute(request, response, state, options)) return;
+  if (await architectureAcpRoute(request, response, state, options)) return;
   if (request.method === "GET" && url.pathname === "/api/config") {
     const defaultAcpAgent = options.acpAgent
       ?? effectiveAcpAgentProfiles(options).find((profile) => profile.agent !== undefined)?.agent;

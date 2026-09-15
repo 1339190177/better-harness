@@ -184,11 +184,33 @@ a `declared` one on disk. A `GET` reading never writes to the user's repository.
 - Verified by: `npx vitest run test/skills-docs/doc-link-graph.test.mjs` (8
   tests) — the skill's `references/model-schema.md` link resolves.
 
+### Slice 3b — AI generation entry (implemented)
+
+- The pane's `Refine with agent` intent from AC-5 landed as a `Generate with AI`
+  toolbar button opening a docked `ArchitectureModelAgentPanel`, reusing Studio's
+  existing ACP conversation surface (`AcpComposer` / `AcpSessionStream` /
+  `streamRun`), mirroring `MemoryAnalysisPanel`.
+- `architecture-acp.ts` streams the session over `POST
+  /api/git/architecture/acp/stream` and lists agents at `GET
+  /api/git/architecture/agents`. The agent's write access is fenced to
+  `.better-harness/architecture/` alone: its cwd and `allowRoots` are that
+  directory, so it can create `model.json`/`bindings.json` there and nothing
+  else. The evidence it needs to name and ground the model — the generated
+  candidate, manifests, and source directories — travels in the prompt (pure
+  `architectureBootstrapPrompt`), not through repository read access.
+- Verified by: `npx vitest run test/architecture-acp.test.ts` (3 tests) over the
+  pure prompt builder (candidate + grounded evidence, exact write targets, purity)
+  and `npx tsc --noEmit` clean over `packages/harness-studio`.
+- Follow-up: the streaming session needs a real ACP agent plus the Rust ACP host
+  (which enforces the path fence via `allowRoots`), so the end-to-end run and the
+  panel's visual review are pending a desktop run. Without the Rust host the Node
+  SDK executor has no `allowRoots` fence; the entry is intended for the desktop
+  shell where the host is present.
+
 ### Slice 4 — still open
 
 - Slice 4 (multi-language grounding behind a shared `FileFactsV1`) is not yet
-  implemented. Wiring the pane's `Refine with agent` action to an agent runtime
-  is a later step; the skill is invocable directly today.
+  implemented.
 
 ## Decisions and Risks
 
