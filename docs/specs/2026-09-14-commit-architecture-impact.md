@@ -261,6 +261,15 @@ replace the Artifact provider lane.
   a legend whose swatches reuse the diagram's own markup. `Export .svg` resolves the computed
   paint onto the cloned nodes, because an exported file that depends on the app's stylesheet
   arrives as an unreadable black rectangle in every other viewer.
+- AC-4 (Reading the diagram, task 17 in part): the diagram is drawn into a measured viewport
+  and fits the pane it has, with zoom (buttons and wheel, about the pointer), pan by drag,
+  double-click or `Fit` to reset, and `Escape` to clear. Clicking an element — a box or a
+  boundary — opens a docked card naming its kind, technology, state, lineage and the edges in
+  and out, including which of them are code facts. The radius is a state of its own: reached
+  elements are marked apart from changed ones, and `arch.snapshot` reports the element ids the
+  change reached so the two are never conflated. Pointer capture is taken on the first real
+  movement, because capturing on press retargets the click that follows to the viewport and the
+  element under it never hears the click.
 
 - AC-3 (Impact radius, task 13 in part): `server/architecture-hop.ts` hands the host the
   parseable, tracked files in a changed file's own directory and the one above it — where a
@@ -288,9 +297,10 @@ replace the Artifact provider lane.
 - A dev-shell probe over this repository: `fbba212d` answers `status: "impact"`, 23 elements,
   16 edges, 114 changed symbols and **61 impacted symbols**, drawing the declared system →
   containers → components tree with Harness Studio, Studio Desktop Shell and Documentation
-  marked changed, and naming the 6 files it could not extract; the same probe exports the pane's
-  SVG and renders it in a plain browser, and a 390px viewport keeps the page itself free of
-  overflow (the canvas scrolls).
+  marked changed, and naming the 6 files it could not extract; the same probe fits the diagram
+  into the pane (44%), zooms to 68%, returns to fit, opens one changed element's details card,
+  exports the pane's SVG and renders it in a plain browser, and keeps the page free of overflow
+  at 390px.
 - `npm test` in `packages/better-harness-desktop` (10 tests) for the versioned start contract and
   `npm run smoke -w @qoder-ai/better-harness-desktop` for the Electron receipt
   (`nativeProof.archRuntime: "arch-v1-nsxpc"`, `archPid` distinct from `archBridgePid`).
@@ -302,11 +312,14 @@ replace the Artifact provider lane.
   shape) and `bindings.json`; a tracked `*.dsl` or workspace JSON is reported as an unreadable
   declared model, named in the pane, rather than translated. Translating those dialects — and
   reading their relationships, views and tags faithfully — is the remaining half of task 12.
-- `dagre` layout and the four-pane browser evidence (tasks 16-18, 23). The pane's own layout is
+- `dagre` layout and the four-pane browser evidence (tasks 16, 18, 23). The pane's own layout is
   hierarchical and bounded, but it has no rank/flow ordering: edges cross boundaries and are not
   routed around boxes.
-- The radius is one hop. A caller two modules away is still out of scope, and the hop's
-  candidate rule covers a change's own directory and its parent only.
+- The radius is one hop, and it is reported per element. Coarse bindings — one element per
+  directory — mean a caller often lives in an element the commit already changed, so "reached"
+  can be empty on a large commit even when the symbol counts show a real radius.
+- The diagram is drawn into the pane rather than opened larger; a dedicated expanded surface is
+  the next step if a reader needs the picture beyond a docked pane's height.
 - Authoring a model is content, not code: this repository ships one under
   `.better-harness/architecture/` so its own commits can be read in the pane.
 

@@ -69,15 +69,21 @@ async function makeGitWorkspace(): Promise<{ path: string; sha: string }> {
   return { path, sha: git(path, "rev-parse", "HEAD") };
 }
 
-/** A declared model with one container bound to the fixture's modules. */
+/** A declared model with one element per fixture module, so the two states differ. */
 async function writeDeclaredModel(root: string): Promise<void> {
   const directory = join(root, ".better-harness", "architecture");
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, "model.json"), JSON.stringify({
-    elements: [{ id: "api", name: "API", kind: "Container", description: null, technology: "TypeScript", tags: ["core"], parent_id: null }],
+    elements: [
+      { id: "store", name: "Store", kind: "Container", description: null, technology: "TypeScript", tags: ["core"], parent_id: null },
+      { id: "api", name: "API", kind: "Container", description: null, technology: "TypeScript", tags: ["core"], parent_id: null },
+    ],
     relationships: [],
   }), "utf8");
-  await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "*.ts", element_id: "api" }]), "utf8");
+  await writeFile(join(directory, "bindings.json"), JSON.stringify([
+    { path_glob: "store.ts", element_id: "store" },
+    { path_glob: "api.ts", element_id: "api" },
+  ]), "utf8");
 }
 
 const staged = transports.filter((entry) => existsSync(entry.executable));
@@ -113,9 +119,14 @@ describe.skipIf(staged.length === 0)("architecture impact over the staged host",
     expect(payload.overlay.impactedSymbols).toBeGreaterThan(0);
     expect(payload.overlay.impactedFiles).toContain("api.ts");
     expect(payload.omitted).toEqual([]);
-    // The projection is real too: the declared element came back marked.
-    expect(payload.elements).toEqual([expect.objectContaining({ id: "api", kind: "Container" })]);
-    expect(payload.changedHitIds).toEqual(["api"]);
+    // The projection is real too, and the two states stay apart: `store` is where
+    // the change landed, `api` is what it reached without changing.
+    expect(payload.elements).toEqual([
+      expect.objectContaining({ id: "store", kind: "Container" }),
+      expect.objectContaining({ id: "api", kind: "Container" }),
+    ]);
+    expect(payload.changedHitIds).toEqual(["store"]);
+    expect(payload.impactedHitIds).toEqual(["api"]);
     expect(payload.dsl).toContain("workspace");
   }, 90_000);
 });

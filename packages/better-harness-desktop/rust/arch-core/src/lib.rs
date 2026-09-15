@@ -23,8 +23,8 @@ pub use dsl::emit_dsl;
 pub use facts::extract_file_facts;
 pub use graph::{build_graph, compute_change_overlay, ChangeOverlay, CodeGraph, CodeGraphLimits};
 pub use project::{
-    project_snapshot, ArchitectureDelta, ArchitectureModel, ArchitectureSnapshot, Binding, C4Element,
-    C4Relationship, compute_delta, ElementKind, RelationshipKind, SourceBinding,
+    project_snapshot, elements_owning_paths, ArchitectureDelta, ArchitectureModel, ArchitectureSnapshot,
+    Binding, C4Element, C4Relationship, compute_delta, ElementKind, RelationshipKind, SourceBinding,
 };
 
 use serde::{Deserialize, Serialize};

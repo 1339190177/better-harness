@@ -2368,22 +2368,33 @@
 .arch-omitted { color: var(--color-warning); font-size: var(--type-meta-size); }
 .arch-btn { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-btn:hover { background: var(--color-surface-hover); }
-.arch-canvas { overflow: auto; padding: var(--space-md); }
-/* The diagram is drawn at its measured size so a narrow pane scrolls it rather
-   than shrinking it below reading size. */
+.arch-canvas { position: relative; overflow: hidden; padding: 0; cursor: grab; }
+.arch-canvas:active { cursor: grabbing; }
+/* The diagram is drawn into a measured viewport, so a docked pane can fit it
+   rather than scroll a picture it never shows whole. */
 .arch-svg { display: block; }
+.arch-svg [role="button"] { cursor: pointer; }
 .arch-loading { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-lg); color: var(--color-text-muted); }
 .arch-error { padding: var(--space-lg); color: var(--color-danger); }
+.arch-zoom { display: flex; align-items: center; gap: 2px; }
+.arch-zoom-level { min-width: 42px; text-align: center; color: var(--color-text-muted); font-size: var(--type-meta-size); font-variant-numeric: tabular-nums; }
 /* A boundary is a container or system, so it reads as a frame its contents sit
-   inside rather than as another box beside them. */
+   inside rather than as another box beside them. Its colour repeats the state of
+   what it contains, because a container's fate is its contents' fate. */
 .arch-boundary { fill: color-mix(in srgb, var(--color-surface) 45%, transparent); stroke: var(--color-border-strong); stroke-width: 1; stroke-dasharray: 4 3; }
-.arch-boundary-changed { fill: color-mix(in srgb, var(--color-danger) 8%, transparent); stroke: var(--color-danger); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.arch-box-changed .arch-boundary { fill: color-mix(in srgb, var(--color-danger) 8%, transparent); stroke: var(--color-danger); stroke-width: 1.5; }
+.arch-box-impacted .arch-boundary { fill: color-mix(in srgb, var(--color-warning) 7%, transparent); stroke: var(--color-warning); stroke-width: 1.5; }
 .arch-boundary-title { fill: var(--color-text-muted); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
-.arch-boundary-title-changed { fill: var(--color-danger); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
+.arch-box-changed .arch-boundary-title { fill: var(--color-danger); }
+.arch-box-impacted .arch-boundary-title { fill: var(--color-warning); }
 .arch-box { fill: var(--color-surface); stroke: var(--color-border-strong); stroke-width: 1; }
-.arch-box-default .arch-box { stroke: var(--color-primary); stroke-width: 2; }
+.arch-box-untouched .arch-box { stroke: var(--color-primary); stroke-width: 2; }
 .arch-box-observed .arch-box { fill: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)); stroke: var(--color-primary); stroke-width: 2; }
+/* Reached but not changed is the radius, so it is its own colour: it is a find,
+   not a fault, and folding it into the changed state hides where the change went. */
+.arch-box-impacted .arch-box { fill: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)); stroke: var(--color-warning); stroke-width: 2.5; }
 .arch-box-changed .arch-box { fill: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface)); stroke: var(--color-danger); stroke-width: 2.5; }
+.arch-selected .arch-box, .arch-selected .arch-boundary { stroke: var(--color-focus); stroke-width: 3; }
 .arch-label { fill: var(--color-text); font-size: var(--type-meta-size); font-family: var(--font-ui); }
 .arch-kind { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); }
 .arch-edge-declared { stroke: var(--color-border-strong); stroke-width: 1.5; }
@@ -2398,5 +2409,22 @@
 .arch-legend-title { fill: var(--color-text); font-size: 11px; font-family: var(--font-ui); font-weight: 600; }
 .arch-legend-label { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-ui); }
 .arch-legend-note { fill: var(--color-text-subtle); font-size: 10px; font-family: var(--font-ui); }
+/* An element's details, anchored where the reader clicked rather than centred. */
+.arch-popup { position: absolute; z-index: 2; max-height: calc(100% - 16px); overflow: auto; padding: var(--space-sm); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-panel); box-shadow: 0 6px 18px rgb(0 0 0 / 35%); }
+.arch-popup-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
+.arch-popup-head strong { color: var(--color-text); }
+.arch-popup-close { border: none; background: none; color: var(--color-text-muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.arch-popup-close:hover { color: var(--color-text); }
+.arch-popup-meta { color: var(--color-text-muted); font-size: 10px; }
+.arch-popup-state { margin-top: 4px; font-size: 10px; }
+.arch-state-changed { color: var(--color-danger); }
+.arch-state-impacted { color: var(--color-warning); }
+.arch-state-observed { color: var(--color-primary); }
+.arch-state-untouched { color: var(--color-text-muted); }
+.arch-popup-line { margin-top: 4px; color: var(--color-text-subtle); font-size: 10px; }
+.arch-popup-text { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--type-meta-size); }
+.arch-popup-section { margin-top: 6px; }
+.arch-popup-label { color: var(--color-text-subtle); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.arch-popup-list { margin: 2px 0 0; padding-left: 14px; color: var(--color-text-muted); font-size: 10px; }
 .arch-toggle { padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: var(--type-meta-size); }
 .arch-toggle:hover { background: var(--color-surface-hover); }

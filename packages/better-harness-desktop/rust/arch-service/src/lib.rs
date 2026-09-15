@@ -171,6 +171,14 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
         &graph,
     );
 
+    // Step 8: Which declared elements the change reached without landing in them:
+    // the radius a reader looks for on the diagram, not only in the count.
+    let reached = arch_core::elements_owning_paths(&bindings, &overlay.impacted_files);
+    let impacted_hit_ids: Vec<String> = reached
+        .into_iter()
+        .filter(|id| !snapshot.changed_hit_ids.contains(id))
+        .collect();
+
     Ok(json!({
         "snapshot": snapshot,
         "dsl": dsl,
@@ -196,6 +204,9 @@ fn snapshot(params: &Value) -> Result<Value, Refusal> {
             // list so a reader can see where the change reached.
             "impactedFiles": &overlay.impacted_files,
         },
+        // Elements the radius reached. The projection's own change hits are not
+        // repeated here: those are the elements the commit changed.
+        "impactedHitIds": impacted_hit_ids,
     }))
 }
 
@@ -337,6 +348,42 @@ mod tests {
             .unwrap()
             .iter()
             .any(|path| path == "api.ts"));
+    }
+
+    #[test]
+    fn names_the_elements_the_change_reached() {
+        // `store.ts` is bound to `store` and changed; `api.ts` is bound to `api`,
+        // unchanged, and calls it — so the radius reached `api` without landing in it.
+        let reply = call("arch.snapshot", json!({
+            "sources": [
+                {
+                    "path": "store.ts",
+                    "source": "export function load(): number {\n  return 2;\n}\n",
+                },
+                {
+                    "path": "api.ts",
+                    "source": "import { load } from \"./store\";\nexport const read = () => load();\n",
+                },
+            ],
+            "tracked_paths": ["store.ts", "api.ts"],
+            "changed_paths": ["store.ts"],
+            "model_json": {
+                "elements": [
+                    { "id": "store", "name": "Store", "kind": "Component", "description": null, "technology": null, "tags": [], "parent_id": null },
+                    { "id": "api", "name": "API", "kind": "Component", "description": null, "technology": null, "tags": [], "parent_id": null },
+                ],
+                "relationships": [],
+            },
+            "bindings": [
+                { "path_glob": "store.ts", "element_id": "store" },
+                { "path_glob": "api.ts", "element_id": "api" },
+            ],
+        }));
+        assert!(reply.get("error").is_none(), "unexpected error: {reply}");
+        assert_eq!(reply["result"]["snapshot"]["changed_hit_ids"][0], "store");
+        // The element the change reached is named, and the one it landed in is not
+        // repeated: a reader has to be able to tell the two apart.
+        assert_eq!(reply["result"]["impactedHitIds"], json!(["api"]));
     }
 
     #[test]

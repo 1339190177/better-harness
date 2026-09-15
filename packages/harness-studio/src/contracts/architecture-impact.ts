@@ -73,6 +73,12 @@ export interface ArchitectureImpact {
   codeHitIds: string[];
   /** Element ids touched by changed code. */
   changedHitIds: string[];
+  /**
+   * Element ids the change reached without landing in them: the radius, which a
+   * reader needs on the diagram and not only as a count. Never repeats a changed
+   * element, so the two states stay distinguishable.
+   */
+  impactedHitIds: string[];
   /** Change summary. */
   overlay: ArchitectureOverlay;
   /** Structurizr DSL for the projection. */
@@ -109,6 +115,7 @@ export function isArchitectureImpact(value: unknown): value is ArchitectureImpac
     && ["impact", "no-impact", "unavailable"].includes(candidate.status as string)
     && Array.isArray(candidate.elements)
     && Array.isArray(candidate.relationships)
+    && Array.isArray(candidate.impactedHitIds)
     && typeof candidate.dsl === "string"
     && Array.isArray(candidate.omitted);
 }

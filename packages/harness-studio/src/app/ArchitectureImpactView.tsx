@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isArchitectureImpact, type ArchitectureImpact, type ArchitectureElement } from "../contracts/architecture-impact.js";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { isArchitectureImpact, type ArchitectureElement, type ArchitectureImpact } from "../contracts/architecture-impact.js";
 import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
 
 interface Props {
@@ -20,8 +21,16 @@ interface DiagramNode {
   depth: number;
   changed: boolean;
   observed: boolean;
+  impacted: boolean;
   /** Child rows, kept from measurement so placement stays a pure function of it. */
   rows: DiagramNode[][];
+}
+
+/** Pan and zoom of the viewport, in screen units. */
+interface View {
+  scale: number;
+  x: number;
+  y: number;
 }
 
 /** A label is what the omitted-file notice prints for each bound. */
@@ -43,17 +52,32 @@ const MARGIN = 16;
 /** A boundary wraps its children rather than growing without limit. Wide enough
  * that two containers sit side by side, tall enough that a nested box reads. */
 const MAX_ROW_W = 1180;
+const ZOOM_STEP = 1.25;
+const MAX_SCALE = 4;
+const MIN_SCALE = 0.15;
+const POPUP_W = 296;
 
 export function ArchitectureImpactView({ sha }: Props) {
   const [data, setData] = useState<ArchitectureImpact | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  /** `null` means "fit the pane": the reading a reader wants before any zooming. */
+  const [view, setView] = useState<View | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [pane, setPane] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const panRef = useRef<{ pointerId: number; startX: number; startY: number; origin: View; moved: boolean } | null>(null);
+  /** Set while a drag is in progress, so releasing it does not also select. */
+  const draggedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSelected(null);
+    setView(null);
     fetch(`/api/git/commits/${sha}/architecture`)
       .then((r) => r.json())
       .then((d: unknown) => {
@@ -74,20 +98,59 @@ export function ArchitectureImpactView({ sha }: Props) {
     return () => { cancelled = true; };
   }, [sha]);
 
+  // The viewport is measured rather than assumed: a docked pane is resizable, and
+  // "fit" is only meaningful against the size the reader actually has.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+    const measure = (): void => {
+      const bounds = canvas.getBoundingClientRect();
+      paneRef.current = { w: bounds.width, h: bounds.height };
+      setPane({ w: bounds.width, h: bounds.height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [loading, error]);
+
+  // React attaches wheel listeners passively, so zooming without also scrolling
+  // the pane needs the listener registered here.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (event.deltaY === 0) return;
+      event.preventDefault();
+      zoomAbout(event.offsetX, event.offsetY, event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP);
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  });
   const exportDsl = useCallback(() => {
     if (!data?.dsl) return;
     const blob = new Blob([data.dsl], { type: "text/plain;charset=utf-8" });
     downloadBlob(blob, `${sha}.dsl`);
   }, [data, sha]);
 
+  const diagramSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+
   const exportSvg = useCallback(() => {
-    if (!svgRef.current) return;
-    const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+    const live = svgRef.current;
+    if (live === null) return;
+    const clone = live.cloneNode(true) as SVGSVGElement;
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    // The live viewport may be zoomed and panned; a file is of the diagram, so it
+    // is written at the diagram's own size with the view transform removed.
+    const { width, height } = diagramSizeRef.current;
+    clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    clone.setAttribute("width", String(width));
+    clone.setAttribute("height", String(height));
+    clone.querySelector("g.arch-view")?.removeAttribute("transform");
     // An exported file leaves this stylesheet behind, so the paint it needs is
     // resolved onto the nodes themselves; otherwise the diagram arrives as an
     // unreadable black rectangle in every other viewer.
-    inlinePaint(svgRef.current, clone);
+    inlinePaint(live, clone);
     const blob = new Blob([clone.outerHTML], { type: "image/svg+xml;charset=utf-8" });
     downloadBlob(blob, `${sha}.architecture.svg`);
   }, [sha]);
@@ -98,6 +161,7 @@ export function ArchitectureImpactView({ sha }: Props) {
 
   const roots = buildTree(data);
   const diagram = layOut(roots);
+  diagramSizeRef.current = diagram;
   const nodesById = indexNodes(roots);
   const edges = [
     ...data.relationships.map((relationship) => ({ relationship, observed: false })),
@@ -110,13 +174,70 @@ export function ArchitectureImpactView({ sha }: Props) {
     return from === undefined || to === undefined || from === to ? [] : [{ relationship, observed, from, to }];
   });
 
+  const fit = fitView(pane, diagram);
+  const shown = view ?? fit;
+  const selectedNode = selected === null ? undefined : nodesById.get(selected);
+
+  /** Zoom about a point in the pane, so the element under the pointer stays put. */
+  function zoomAbout(px: number, py: number, factor: number): void {
+    const current = view ?? fitView(paneRef.current, diagram);
+    const scale = clamp(current.scale * factor, MIN_SCALE, MAX_SCALE);
+    const ratio = scale / current.scale;
+    setView({ scale, x: px - (px - current.x) * ratio, y: py - (py - current.y) * ratio });
+  }
+
+  function zoomBy(factor: number): void {
+    zoomAbout(pane.w / 2, pane.h / 2, factor);
+  }
+
+  function startPan(event: ReactPointerEvent<SVGSVGElement>): void {
+    if (event.button !== 0) return;
+    draggedRef.current = false;
+    panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origin: shown, moved: false };
+  }
+
+  /**
+   * Panning captures the pointer, which retargets the click that follows to the
+   * viewport. Capture is therefore taken on the first real movement: a press and
+   * release without one stays a click on whatever element was under it.
+   */
+  function movePan(event: ReactPointerEvent<SVGSVGElement>): void {
+    const pan = panRef.current;
+    if (pan === null || pan.pointerId !== event.pointerId) return;
+    const dx = event.clientX - pan.startX;
+    const dy = event.clientY - pan.startY;
+    if (!pan.moved) {
+      if (Math.hypot(dx, dy) < 3) return;
+      pan.moved = true;
+      draggedRef.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    setView({ scale: pan.origin.scale, x: pan.origin.x + dx, y: pan.origin.y + dy });
+  }
+
+  function endPan(event: ReactPointerEvent<SVGSVGElement>): void {
+    const pan = panRef.current;
+    if (pan === null || pan.pointerId !== event.pointerId) return;
+    panRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  /** Selecting is a gesture of its own: a drag that ended on an element is not one. */
+  function select(id: string): void {
+    if (draggedRef.current) return;
+    setSelected(selected === id ? null : id);
+  }
+
   return (
     <div className="arch-pane" data-arch-sha={sha}>
       <div className="arch-header"><strong>Architecture Impact</strong><span>{data.elements.length} elements · {edges.length} edges</span></div>
       <div className="arch-toolbar">
         <span className="arch-summary">
           {data.overlay.changedSymbols > 0
-            ? `${data.overlay.changedSymbols} changed symbols, ${data.overlay.impactedSymbols} impacted`
+            // Elements reached are named only when there are some: "0 elements
+            // reached" beside a non-zero impact reads as a contradiction, while
+            // the radius is usually inside the elements that already changed.
+            ? `${data.overlay.changedSymbols} changed symbols, ${data.overlay.impactedSymbols} impacted${data.impactedHitIds.length > 0 ? `, ${data.impactedHitIds.length} elements reached` : ""}`
             : "No architecture impact detected"}
         </span>
         {data.omitted.length > 0 && (
@@ -126,19 +247,36 @@ export function ArchitectureImpactView({ sha }: Props) {
             {data.omitted.map((omission) => `${omission.count} file${omission.count === 1 ? "" : "s"} not read (${OMISSION_REASON[omission.reason]}: ${omission.examplePath})`).join("; ")}
           </span>
         )}
+        <span className="arch-zoom" role="group" aria-label="Diagram zoom">
+          <button type="button" className="arch-btn" onClick={() => zoomBy(1 / ZOOM_STEP)} aria-label="Zoom out">−</button>
+          <span className="arch-zoom-level">{Math.round(shown.scale * 100)}%</span>
+          <button type="button" className="arch-btn" onClick={() => zoomBy(ZOOM_STEP)} aria-label="Zoom in">+</button>
+          <button type="button" className="arch-btn" onClick={() => { setView(null); }} disabled={view === null}>Fit</button>
+        </span>
         {data.dsl && <button type="button" className="arch-btn" onClick={exportDsl}>Export .dsl</button>}
         <button type="button" className="arch-btn" onClick={exportSvg}>Export .svg</button>
       </div>
-      <div className="arch-canvas">
+      <div
+        className="arch-canvas"
+        ref={canvasRef}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") { setSelected(null); setView(null); }
+        }}
+      >
         <svg
           ref={svgRef}
-          viewBox={`0 0 ${diagram.width} ${diagram.height}`}
-          width={diagram.width}
-          height={diagram.height}
+          viewBox={`0 0 ${pane.w} ${pane.h}`}
+          width="100%"
+          height="100%"
           className="arch-svg"
           role="img"
-          aria-label={`Declared architecture with this commit's change marked: ${data.elements.length} elements and ${edges.length} relationships.`}
+          aria-label={`Declared architecture with this commit's change marked: ${data.elements.length} elements, ${data.changedHitIds.length} changed, ${data.impactedHitIds.length} reached, ${edges.length} relationships.`}
           xmlns="http://www.w3.org/2000/svg"
+          onPointerDown={startPan}
+          onPointerMove={movePan}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+          onDoubleClick={() => setView(null)}
         >
           <defs>
             <marker id="arch-arrow-declared" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -148,78 +286,204 @@ export function ArchitectureImpactView({ sha }: Props) {
               <path d="M0,0 L8,4 L0,8 z" className="arch-arrow-observed" />
             </marker>
           </defs>
-          {/* Boundaries paint before their contents, so a nested element is never hidden. */}
-          <g className="arch-boundaries">
-            {flatten(roots).filter((node) => node.children.length > 0).map((node) => (
-              <g key={`boundary-${node.element.id}`}>
-                <rect
-                  x={node.box.x}
-                  y={node.box.y}
-                  width={node.box.w}
-                  height={node.box.h}
-                  rx={6}
-                  className={node.changed ? "arch-boundary-changed" : "arch-boundary"}
-                />
-                <text x={node.box.x + 8} y={node.box.y + 15} className={node.changed ? "arch-boundary-title-changed" : "arch-boundary-title"}>
-                  {node.element.name} · {node.element.kind}
-                </text>
-              </g>
-            ))}
-          </g>
-          <g className="arch-edges">
-            {edges.map(({ relationship, observed, from, to }) => {
-              const [start, end] = anchors(from.box, to.box);
-              return (
-                <g key={`${observed ? "observed" : "declared"}-${relationship.id}`}>
-                  <line
-                    x1={start.x}
-                    y1={start.y}
-                    x2={end.x}
-                    y2={end.y}
-                    className={observed ? "arch-edge-observed" : "arch-edge-declared"}
-                    markerEnd={observed ? "url(#arch-arrow-observed)" : "url(#arch-arrow-declared)"}
-                  />
-                  {!observed && relationship.description !== undefined && relationship.description !== "" && (
-                    <text
-                      x={start.x + (end.x - start.x) * 0.35}
-                      y={start.y + (end.y - start.y) * 0.35 - 3}
-                      className="arch-edge-label"
-                      textAnchor="middle"
-                    >
-                      {relationship.description}
-                    </text>
-                  )}
+          <g className="arch-view" transform={`translate(${shown.x} ${shown.y}) scale(${shown.scale})`}>
+            {/* Boundaries paint before their contents, so a nested element is never hidden. */}
+            <g className="arch-boundaries">
+              {flatten(roots).filter((node) => node.children.length > 0).map((node) => (
+                <g
+                  key={`boundary-${node.element.id}`}
+                  className={`${stateClass(node)}${selected === node.element.id ? " arch-selected" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${node.element.name}, ${node.element.kind}, ${stateLabel(node)}`}
+                  onClick={() => select(node.element.id)}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(node.element.id); } }}
+                >
+                  <rect x={node.box.x} y={node.box.y} width={node.box.w} height={node.box.h} rx={6} className="arch-boundary" />
+                  <text x={node.box.x + 8} y={node.box.y + 15} className="arch-boundary-title">
+                    {node.element.name} · {node.element.kind}
+                  </text>
                 </g>
-              );
-            })}
-          </g>
-          <g className="arch-elements">
-            {flatten(roots).filter((node) => node.children.length === 0).map((node) => (
-              <g key={`element-${node.element.id}`} className={node.changed ? "arch-box-changed" : node.observed ? "arch-box-observed" : "arch-box-default"}>
-                <rect x={node.box.x} y={node.box.y} width={node.box.w} height={node.box.h} rx={6} className="arch-box" />
-                <text x={node.box.x + node.box.w / 2} y={node.box.y + node.box.h / 2 + 1} textAnchor="middle" dominantBaseline="middle" className="arch-label">
-                  {node.element.name}
-                </text>
-                <text x={node.box.x + node.box.w / 2} y={node.box.y + node.box.h - 7} textAnchor="middle" className="arch-kind">
-                  {node.element.kind}
-                </text>
-              </g>
-            ))}
-          </g>
-          <g className="arch-legend">
-            <text x={MARGIN} y={diagram.height - 26} className="arch-legend-title">Legend</text>
-            <LegendElement x={MARGIN + 52} y={diagram.height - 26} state="arch-box-changed" label="changed by this commit" />
-            <LegendElement x={MARGIN + 232} y={diagram.height - 26} state="arch-box-observed" label="observed in code facts" />
-            <LegendEdge x={MARGIN + 412} y={diagram.height - 29} observed={false} label="declared relationship" />
-            <LegendEdge x={MARGIN + 592} y={diagram.height - 29} observed label="code-fact call" />
-            <text x={MARGIN} y={diagram.height - 10} className="arch-legend-note">
-              Impact radius covers the changed files and the tracked modules one import hop around them. Code facts only: runtime traffic, logs and traces were not evaluated.
-            </text>
+              ))}
+            </g>
+            <g className="arch-edges">
+              {edges.map(({ relationship, observed, from, to }) => {
+                const [start, end] = anchors(from.box, to.box);
+                return (
+                  <g key={`${observed ? "observed" : "declared"}-${relationship.id}`}>
+                    <line
+                      x1={start.x}
+                      y1={start.y}
+                      x2={end.x}
+                      y2={end.y}
+                      className={observed ? "arch-edge-observed" : "arch-edge-declared"}
+                      markerEnd={observed ? "url(#arch-arrow-observed)" : "url(#arch-arrow-declared)"}
+                    />
+                    {!observed && relationship.description !== undefined && relationship.description !== "" && (
+                      <text
+                        x={start.x + (end.x - start.x) * 0.35}
+                        y={start.y + (end.y - start.y) * 0.35 - 3}
+                        className="arch-edge-label"
+                        textAnchor="middle"
+                      >
+                        {relationship.description}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+            <g className="arch-elements">
+              {flatten(roots).filter((node) => node.children.length === 0).map((node) => (
+                <g
+                  key={`element-${node.element.id}`}
+                  className={`${stateClass(node)}${selected === node.element.id ? " arch-selected" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${node.element.name}, ${node.element.kind}, ${stateLabel(node)}`}
+                  onClick={() => select(node.element.id)}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(node.element.id); } }}
+                >
+                  <rect x={node.box.x} y={node.box.y} width={node.box.w} height={node.box.h} rx={6} className="arch-box" />
+                  <text x={node.box.x + node.box.w / 2} y={node.box.y + node.box.h / 2 + 1} textAnchor="middle" dominantBaseline="middle" className="arch-label">
+                    {node.element.name}
+                  </text>
+                  <text x={node.box.x + node.box.w / 2} y={node.box.y + node.box.h - 7} textAnchor="middle" className="arch-kind">
+                    {node.element.kind}
+                  </text>
+                </g>
+              ))}
+            </g>
+            <g className="arch-legend">
+              <text x={MARGIN} y={diagram.height - 26} className="arch-legend-title">Legend</text>
+              <LegendElement x={MARGIN + 52} y={diagram.height - 26} state="arch-box-changed" label="changed by this commit" />
+              <LegendElement x={MARGIN + 232} y={diagram.height - 26} state="arch-box-impacted" label="reached by it" />
+              <LegendElement x={MARGIN + 372} y={diagram.height - 26} state="arch-box-observed" label="seen in code facts" />
+              <LegendEdge x={MARGIN + 532} y={diagram.height - 29} observed={false} label="declared relationship" />
+              <LegendEdge x={MARGIN + 712} y={diagram.height - 29} observed label="code-fact call" />
+              <text x={MARGIN} y={diagram.height - 10} className="arch-legend-note">
+                Reached means a caller one import hop from the change. Code facts only: runtime traffic, logs and traces were not evaluated.
+              </text>
+            </g>
           </g>
         </svg>
+        {selectedNode !== undefined && (
+          <ElementPopup
+            node={selectedNode}
+            elements={data.elements}
+            edges={edges}
+            pane={pane}
+            view={shown}
+            onClose={() => setSelected(null)}
+          />
+        )}
       </div>
     </div>
   );
+}
+
+/** A docked card, anchored to the element it describes rather than centred. */
+function ElementPopup({
+  node,
+  elements,
+  edges,
+  pane,
+  view,
+  onClose,
+}: {
+  node: DiagramNode;
+  elements: ArchitectureElement[];
+  edges: Array<{ relationship: { id: string; description?: string }; observed: boolean; from: DiagramNode; to: DiagramNode }>;
+  pane: { w: number; h: number };
+  view: View;
+  onClose: () => void;
+}) {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const lineage: string[] = [];
+  for (let current = node.element.parentId, guard = 0; current !== undefined && guard < 8; guard += 1) {
+    const parent = byId.get(current);
+    if (parent === undefined) break;
+    lineage.unshift(parent.name);
+    current = parent.parentId;
+  }
+  const outgoing = edges.filter((edge) => edge.from.element.id === node.element.id);
+  const incoming = edges.filter((edge) => edge.to.element.id === node.element.id);
+
+  const box = screenBox(node.box, view);
+  const left = clamp(box.x + box.w / 2 - POPUP_W / 2, 8, Math.max(8, pane.w - POPUP_W - 8));
+  const below = box.y + box.h + 8;
+  const top = below + 190 > pane.h ? Math.max(8, box.y - 198) : below;
+
+  return (
+    <div className="arch-popup" style={{ left, top, width: POPUP_W }} role="dialog" aria-label={`${node.element.name} details`}>
+      <div className="arch-popup-head">
+        <strong>{node.element.name}</strong>
+        <button type="button" className="arch-popup-close" onClick={onClose} aria-label="Close details">×</button>
+      </div>
+      <div className="arch-popup-meta">
+        {[node.element.kind, node.element.technology].filter((value) => value !== undefined && value !== "").join(" · ")}
+      </div>
+      <div className={`arch-popup-state arch-state-${stateKey(node)}`}>{stateLabel(node)}</div>
+      {lineage.length > 0 && <div className="arch-popup-line">{lineage.join(" › ")}</div>}
+      {node.element.description !== undefined && node.element.description !== "" && (
+        <p className="arch-popup-text">{node.element.description}</p>
+      )}
+      <Section title="Reaches" entries={outgoing.map(describeEdge)} />
+      <Section title="Reached by" entries={incoming.map(describeEdge)} />
+    </div>
+  );
+}
+
+function Section({ title, entries }: { title: string; entries: string[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="arch-popup-section">
+      <span className="arch-popup-label">{title}</span>
+      <ul className="arch-popup-list">
+        {entries.slice(0, 6).map((entry, index) => <li key={`${index}-${entry}`}>{entry}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function describeEdge(edge: { relationship: { description?: string }; observed: boolean; from: DiagramNode; to: DiagramNode }): string {
+  const description = edge.relationship.description !== undefined && edge.relationship.description !== "" ? edge.relationship.description : "relationship";
+  return `${edge.from.element.name} → ${edge.to.element.name} · ${description}${edge.observed ? " (code fact)" : ""}`;
+}
+
+/** Which of the three marked states an element is in, and how it is named. */
+function stateKey(node: DiagramNode): "changed" | "impacted" | "observed" | "untouched" {
+  if (node.changed) return "changed";
+  if (node.impacted) return "impacted";
+  if (node.observed) return "observed";
+  return "untouched";
+}
+
+function stateClass(node: DiagramNode): string {
+  return `arch-box-${stateKey(node)}`;
+}
+
+function stateLabel(node: DiagramNode): string {
+  switch (stateKey(node)) {
+    case "changed": return "changed by this commit";
+    case "impacted": return "reached by this commit, not changed by it";
+    case "observed": return "seen in code facts";
+    default: return "not touched by this commit";
+  }
+}
+
+function screenBox(box: DiagramBox, view: View): DiagramBox {
+  return { x: box.x * view.scale + view.x, y: box.y * view.scale + view.y, w: box.w * view.scale, h: box.h * view.scale };
+}
+
+function fitView(pane: { w: number; h: number }, diagram: { width: number; height: number }): View {
+  if (pane.w === 0 || pane.h === 0 || diagram.width === 0) return { scale: 1, x: 0, y: 0 };
+  const scale = clamp(Math.min((pane.w - 8) / diagram.width, (pane.h - 8) / diagram.height), MIN_SCALE, 1.5);
+  return { scale, x: (pane.w - diagram.width * scale) / 2, y: (pane.h - diagram.height * scale) / 2 };
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(Math.max(value, low), high);
 }
 
 /** Legend entries reuse the diagram's own markup, so a swatch cannot drift from
@@ -255,6 +519,7 @@ function LegendEdge({ x, y, observed, label }: { x: number; y: number; observed:
 function buildTree(data: ArchitectureImpact): DiagramNode[] {
   const changed = new Set(data.changedHitIds);
   const observed = new Set(data.codeHitIds);
+  const impacted = new Set(data.impactedHitIds);
   const known = new Set(data.elements.map((element) => element.id));
   const childrenOf = new Map<string, ArchitectureElement[]>();
   const roots: ArchitectureElement[] = [];
@@ -275,6 +540,7 @@ function buildTree(data: ArchitectureImpact): DiagramNode[] {
       depth,
       changed: changed.has(element.id),
       observed: observed.has(element.id),
+      impacted: impacted.has(element.id),
       rows: [],
     };
     if (seen.has(element.id)) return node;

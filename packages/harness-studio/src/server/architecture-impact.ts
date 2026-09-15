@@ -118,6 +118,7 @@ export async function readCommitArchitectureImpact(
     observedEdges: raw.observedEdges,
     codeHitIds: raw.codeHitIds,
     changedHitIds: raw.changedHitIds,
+    impactedHitIds: raw.impactedHitIds,
     overlay: raw.overlay,
     dsl: raw.dsl,
     omitted: [
@@ -151,6 +152,7 @@ export function unavailableImpact(sha: string, message: string): ArchitectureImp
     observedEdges: [],
     codeHitIds: [],
     changedHitIds: [],
+    impactedHitIds: [],
     overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
     dsl: "",
     omitted: [],

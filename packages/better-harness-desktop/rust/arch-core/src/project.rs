@@ -116,6 +116,24 @@ pub fn project_snapshot(
     }
 }
 
+/// Which declared elements own any of these paths.
+///
+/// The projection marks the elements a change landed in; this answers the wider
+/// question — which elements the reach of that change also touched — from the same
+/// bindings, so a reader sees the radius on the diagram and not only in a count.
+pub fn elements_owning_paths(bindings: &[SourceBinding], paths: &[String]) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for binding in bindings {
+        if !paths.iter().any(|path| simple_glob_match(path, &binding.path_glob)) {
+            continue;
+        }
+        if !ids.contains(&binding.element_id) {
+            ids.push(binding.element_id.clone());
+        }
+    }
+    ids
+}
+
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------

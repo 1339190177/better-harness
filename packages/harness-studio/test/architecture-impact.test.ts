@@ -84,7 +84,19 @@ function snapshotResult(changedSymbols = 2): unknown {
     },
     dsl: "workspace \"Architecture Impact\" \"declared + observed\" {}\n",
     skipped: [],
+    impactedHitIds: [],
     overlay: { changedSymbols, impactedSymbols: 1, impactedFiles: ["greeting.ts"] },
+  };
+}
+
+/** A provider's reading, in the contract's own shape rather than the host's. */
+function readingStub(overrides: Partial<ArchitectureImpactReading> = {}): ArchitectureImpactReading {
+  return {
+    elements: [], relationships: [], observedEdges: [], codeHitIds: [], changedHitIds: [], impactedHitIds: [],
+    overlay: { changedSymbols: 2, impactedSymbols: 1, impactedFiles: [] },
+    dsl: "workspace \"Architecture Impact\" {}\n",
+    skipped: [],
+    ...overrides,
   };
 }
 
@@ -211,6 +223,17 @@ describe("arch.snapshot route", () => {
 
     const untouched = await openFixture(recordingProvider(() => snapshotResult(0)));
     expect(await (await fetch(`${untouched.url}/api/git/commits/${untouched.sha}/architecture`)).json()).toMatchObject({ status: "no-impact" });
+  });
+
+  it("names the elements the radius reached, apart from the ones it changed", async () => {
+    // The pane marks the two states differently, so the reading has to carry them
+    // separately: one element changed, another was reached by the change.
+    const provider = recordingProvider(() => readingStub({ changedHitIds: ["api"], impactedHitIds: ["store"] }));
+    const fixture = await openFixture(provider);
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${fixture.sha}/architecture`)).json();
+    expect(payload.changedHitIds).toEqual(["api"]);
+    expect(payload.impactedHitIds).toEqual(["store"]);
   });
 
   it("answers a second request for the same commit from cache", async () => {
@@ -345,6 +368,7 @@ describe("native arch host provider", () => {
         observedEdges: [{ id: "obs", sourceId: "api", targetId: "store", kind: "ResolvedCall" }],
         codeHitIds: ["api"],
         changedHitIds: ["api"],
+        impactedHitIds: [],
         skipped: [],
         overlay: { changedSymbols: 2, impactedSymbols: 1, impactedFiles: ["greeting.ts"] },
         dsl: (snapshotResult() as { dsl: string }).dsl,
@@ -375,7 +399,7 @@ describe("native arch host provider", () => {
       delete copy[field];
       return copy;
     };
-    for (const result of [without("snapshot"), without("overlay"), without("dsl"), without("skipped"), { ...valid, snapshot: [] }, { ...valid, snapshot: { model: { elements: [], relationships: [] } } }]) {
+    for (const result of [without("snapshot"), without("overlay"), without("dsl"), without("skipped"), without("impactedHitIds"), { ...valid, snapshot: [] }, { ...valid, snapshot: { model: { elements: [], relationships: [] } } }]) {
       const child = fakeHostProcess((request) => ({ version: 1, id: request.id, result }));
       const host = createRustArchHost({ executable: "/native/harness-arch-host", spawnProcess: () => child as never });
       try {
