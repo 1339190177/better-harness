@@ -5,8 +5,14 @@
  * a `CommitArchitectureImpactV1` result.
  */
 import { createHash } from "node:crypto";
-import type { GitCommitDetail } from "../contracts/git-history.js";
-import type { ArchitectureImpact, ArchitectureImpactProvider } from "../contracts/architecture-impact.js";
+import type { GitCommitDetail, GitCommitFileChange } from "../contracts/git-history.js";
+import type {
+  ArchitectureImpact,
+  ArchitectureImpactFile,
+  ArchitectureImpactFileState,
+  ArchitectureImpactProvider,
+} from "../contracts/architecture-impact.js";
+import { elementsOwningPath } from "./architecture-bindings.js";
 import { resolveArchitectureModel, type ModelOrigin } from "./architecture-model.js";
 import { selectImportHop } from "./architecture-hop.js";
 import { isExtractable, isSourceLike } from "./architecture-sources.js";
@@ -74,17 +80,36 @@ export async function readCommitArchitectureImpact(
   const sources: Array<{ path: string; source: string }> = [];
   const tooLarge: string[] = [];
   const overBudget: string[] = [];
+  /**
+   * One row per changed file, keyed by path so the list keeps the commit's own
+   * order. A file the host reports later as unread is re-labelled in place; the
+   * hop's context is never a row, because it is not a file this commit changed.
+   */
+  const files = new Map<string, ArchitectureImpactFile>();
+  const row = (file: GitCommitFileChange, state: ArchitectureImpactFileState): ArchitectureImpactFile => ({
+    path: file.path,
+    status: file.status,
+    additions: file.additions,
+    deletions: file.deletions,
+    binary: file.binary,
+    state,
+    elementIds: elementsOwningPath(file.path, bindings),
+  });
   let budget = MAX_SOURCES_BYTES;
   for (const file of detail.files) {
-    if (!READABLE_STATUSES.has(file.status)) continue;
-    if (!isSourceLike(file.path)) continue;
-    if (sources.length >= MAX_FILE_COUNT) { overBudget.push(file.path); continue; }
+    // A status whose content does not exist at the revision has nothing to read,
+    // which is a standing of its own rather than an omission: the file is the
+    // change, and a deletion is a fact about it a reader can act on.
+    if (!READABLE_STATUSES.has(file.status)) { files.set(file.path, row(file, "deleted")); continue; }
+    if (!isSourceLike(file.path)) { files.set(file.path, row(file, "not-source")); continue; }
+    if (sources.length >= MAX_FILE_COUNT) { overBudget.push(file.path); files.set(file.path, row(file, "request-budget")); continue; }
     const read = await readChangedSource(repoRoot, sha, file.path);
-    if ("omitted" in read) { tooLarge.push(file.path); continue; }
+    if ("omitted" in read) { tooLarge.push(file.path); files.set(file.path, row(file, "too-large")); continue; }
     const bytes = Buffer.byteLength(read.source, "utf8");
-    if (bytes > budget) { overBudget.push(file.path); continue; }
+    if (bytes > budget) { overBudget.push(file.path); files.set(file.path, row(file, "request-budget")); continue; }
     budget -= bytes;
     sources.push({ path: file.path, source: read.source });
+    files.set(file.path, row(file, "in-projection"));
   }
 
   const changedPaths = detail.files
@@ -127,6 +152,16 @@ export async function readCommitArchitectureImpact(
   const unsupported = unread.filter((skip) => !isExtractable(skip.path)).map((skip) => skip.path);
   const unparsed = unread.filter((skip) => isExtractable(skip.path)).map((skip) => skip.path);
 
+  // The host is the only side that knows a file it could not read, and which of
+  // the two reasons applies: a language v1 does not extract is a named gap, a
+  // parse it rejected is a defect in the file. Only a file that reached the host
+  // can be re-labelled by its reply, so a `not-source` row stays as it is.
+  for (const skip of raw.skipped) {
+    const entry = files.get(skip.path);
+    if (entry === undefined || entry.state !== "in-projection") continue;
+    entry.state = isExtractable(skip.path) ? "unparsed" : "unsupported-language";
+  }
+
   const result: ArchitectureImpact = {
     kind: "CommitArchitectureImpactV1",
     sha,
@@ -139,6 +174,7 @@ export async function readCommitArchitectureImpact(
     impactedHitIds: raw.impactedHitIds,
     overlay: raw.overlay,
     dsl: raw.dsl,
+    files: [...files.values()],
     omitted: [
       ...(tooLarge.length === 0 ? [] : [{ count: tooLarge.length, reason: "too-large" as const, examplePath: tooLarge[0]! }]),
       ...(overBudget.length === 0 ? [] : [{ count: overBudget.length, reason: "request-budget" as const, examplePath: overBudget[0]! }]),
@@ -175,6 +211,7 @@ export function unavailableImpact(sha: string, message: string): ArchitectureImp
     impactedHitIds: [],
     overlay: { changedSymbols: 0, impactedSymbols: 0, impactedFiles: [] },
     dsl: "",
+    files: [],
     omitted: [],
     error: message,
   };

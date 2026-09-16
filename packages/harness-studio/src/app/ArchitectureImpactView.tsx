@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { isArchitectureImpact, type ArchitectureElement, type ArchitectureImpact } from "../contracts/architecture-impact.js";
+import {
+  isArchitectureImpact,
+  type ArchitectureElement,
+  type ArchitectureImpact,
+  type ArchitectureImpactFile,
+  type ArchitectureImpactFileState,
+} from "../contracts/architecture-impact.js";
+import { CaretDown } from "@phosphor-icons/react/CaretDown";
+import { CaretRight } from "@phosphor-icons/react/CaretRight";
 import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
 
 interface Props {
@@ -93,6 +101,8 @@ export function ArchitectureImpactView({ sha, label, agentTrigger, agentOpen, on
   const [saving, setSaving] = useState(false);
   /** The last save outcome, shown beside the badge; cleared when the commit changes. */
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  /** Open state of the docked changed-file list. */
+  const [filesOpen, setFilesOpen] = useState(true);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -208,6 +218,8 @@ export function ArchitectureImpactView({ sha, label, agentTrigger, agentOpen, on
   const shown = view ?? fit;
   const selectedNode = selected === null ? undefined : nodesById.get(selected);
   const notice = omissionNotice(data.omitted);
+  /** Element names, so a file row names the boundary it belongs to. */
+  const names = new Map(data.elements.map((element) => [element.id, element.name]));
 
   /** Zoom about a point in the pane, so the element under the pointer stays put. */
   function zoomAbout(px: number, py: number, factor: number): void {
@@ -451,6 +463,42 @@ export function ArchitectureImpactView({ sha, label, agentTrigger, agentOpen, on
           />
         )}
       </div>
+      {data.files.length > 0 && (
+        // The reading's own change, named. Without it a no-impact commit answers
+        // with silence about what it did change, and a reader cannot tell that
+        // apart from a commit the projection was never about.
+        <section className="arch-files" aria-label="Changed files">
+          <header className="arch-files-head">
+            <button
+              type="button"
+              className="arch-files-toggle"
+              aria-expanded={filesOpen}
+              onClick={() => setFilesOpen((open) => !open)}
+            >
+              {filesOpen ? <CaretDown aria-hidden="true" size={12} /> : <CaretRight aria-hidden="true" size={12} />}
+              <strong>Changed files</strong>
+            </button>
+            <span className="arch-files-count">{filesSummary(data.files)}</span>
+          </header>
+          {filesOpen && (
+            <ul className="arch-file-list">
+              {data.files.map((file) => {
+                // A reader knows the boundary by name; the id is only what the
+                // projection carries, so an unmatched one is the fallback.
+                const owners = file.elementIds.map((id) => names.get(id) ?? id).join(", ");
+                return (
+                  <li key={file.path} className="arch-file" data-standing={FILE_STANDING[file.state]}>
+                    <span className="arch-file-status" title={file.status}>{CHANGE_LETTER[file.status]}</span>
+                    <span className="arch-file-path" title={file.path}>{file.path}</span>
+                    <span className="arch-file-state">{FILE_STATE_LABEL[file.state]}</span>
+                    {owners !== "" && <span className="arch-file-element" title={owners}>{owners}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -522,6 +570,44 @@ function Section({ title, entries }: { title: string; entries: string[] }) {
 function describeEdge(edge: { relationship: { description?: string }; observed: boolean; from: DiagramNode; to: DiagramNode }): string {
   const description = edge.relationship.description !== undefined && edge.relationship.description !== "" ? edge.relationship.description : "relationship";
   return `${edge.from.element.name} → ${edge.to.element.name} · ${description}${edge.observed ? " (code fact)" : ""}`;
+}
+
+/** The one-letter change kind a file row leads with, as git prints it. */
+const CHANGE_LETTER: Record<ArchitectureImpactFile["status"], string> = {
+  added: "A", modified: "M", deleted: "D", renamed: "R", copied: "C", "type-changed": "T",
+};
+
+/** What each standing means to a reader, in the pane's own words. */
+const FILE_STATE_LABEL: Record<ArchitectureImpactFileState, string> = {
+  "in-projection": "in projection",
+  "not-source": "not source",
+  deleted: "deleted at this revision",
+  "too-large": "over the per-file bound",
+  "request-budget": "past the request budget",
+  "unsupported-language": "language not extracted",
+  unparsed: "could not be parsed",
+};
+
+/**
+ * How a standing reads: held by the projection, outside what it is about, or a
+ * named gap in it. The three groups are the ones a reader acts on differently,
+ * so the list paints three tones rather than seven.
+ */
+const FILE_STANDING: Record<ArchitectureImpactFileState, "projected" | "out-of-scope" | "unread"> = {
+  "in-projection": "projected",
+  "not-source": "out-of-scope",
+  deleted: "out-of-scope",
+  "too-large": "unread",
+  "request-budget": "unread",
+  "unsupported-language": "unread",
+  unparsed: "unread",
+};
+
+/** How many files the commit changed, and how many of them the reading held. */
+function filesSummary(files: readonly ArchitectureImpactFile[]): string {
+  const held = files.filter((file) => file.state === "in-projection").length;
+  const counted = `${files.length} file${files.length === 1 ? "" : "s"}`;
+  return held === 0 ? `${counted} · none in projection` : `${counted} · ${held} in projection`;
 }
 
 /** Which of the three marked states an element is in, and how it is named. */

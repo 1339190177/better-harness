@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { isArchitectureImpact, type ArchitectureImpactProvider, type ArchitectureImpactReading } from "../src/contracts/architecture-impact.js";
+import { elementsOwningPath, simpleGlobMatch } from "../src/server/architecture-bindings.js";
 import { MAX_HOP_FILES, selectImportHop } from "../src/server/architecture-hop.js";
 import { isExtractable, isSourceLike } from "../src/server/architecture-sources.js";
 import { startHarnessStudioServer, type StartedHarnessStudioServer } from "../src/server/server.js";
@@ -52,6 +53,14 @@ async function writeDeclaredModel(root: string, model: unknown = FIXTURE_MODEL):
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, "model.json"), JSON.stringify(model), "utf8");
   await writeFile(join(directory, "bindings.json"), JSON.stringify([{ path_glob: "**/greeting.ts", element_id: "api" }]), "utf8");
+}
+
+/**
+ * Rewrite the worktree's bindings. A reading resolves them per request, so a test
+ * can hand the same commit a different projection without touching the commits.
+ */
+async function writeBindings(root: string, bindings: unknown): Promise<void> {
+  await writeFile(join(root, ".better-harness", "architecture", "bindings.json"), JSON.stringify(bindings), "utf8");
 }
 
 /** Two commits whose second one changes a module that a neighbour calls. */
@@ -180,6 +189,53 @@ describe("source scope", () => {
   });
 });
 
+describe("binding globs", () => {
+  it("matches the shapes arch-core matches, and no more", () => {
+    // One path per branch of the host's matcher, so a pane that names an element
+    // and a diagram that marks one cannot disagree about the same path.
+    expect(simpleGlobMatch("packages/api/src/handler.ts", "packages/api/**")).toBe(true);
+    expect(simpleGlobMatch("greeting.ts", "**/greeting.ts")).toBe(true);
+    expect(simpleGlobMatch("src/deep/greeting.ts", "**/greeting.ts")).toBe(true);
+    expect(simpleGlobMatch("src/deep/hello.ts", "**/greeting.ts")).toBe(false);
+    expect(simpleGlobMatch("store.ts", "store.ts")).toBe(true);
+    expect(simpleGlobMatch("store/index.ts", "store.ts")).toBe(false);
+    expect(simpleGlobMatch("anything/at/all.ts", "**")).toBe(true);
+    // A directory glob is a prefix test in the host, not a path-segment one, and
+    // the pane repeats that rather than being the stricter of the two.
+    expect(simpleGlobMatch("packages/apifoo/src/handler.ts", "packages/api/**")).toBe(true);
+  });
+
+  it("names every element a path sits in, once, in binding order", () => {
+    const bindings = [
+      { pathGlob: "**/store.ts", elementId: "store" },
+      { pathGlob: "**", elementId: "repo" },
+      { pathGlob: "**/store.ts", elementId: "store" },
+    ];
+    expect(elementsOwningPath("store.ts", bindings)).toEqual(["store", "repo"]);
+    expect(elementsOwningPath("docs/notes.md", bindings)).toEqual(["repo"]);
+    expect(elementsOwningPath("docs/notes.md", [])).toEqual([]);
+  });
+});
+
+describe("impact contract", () => {
+  const reading = {
+    kind: "CommitArchitectureImpactV1",
+    sha: "a".repeat(40),
+    status: "no-impact",
+    elements: [], relationships: [], impactedHitIds: [], dsl: "", files: [], omitted: [],
+  };
+
+  it("refuses a file list that is not the contract", () => {
+    // A row without a path, or with a standing nobody defined, would render as a
+    // blank line a reader would take for a file named "".
+    expect(isArchitectureImpact(reading)).toBe(true);
+    expect(isArchitectureImpact({ ...reading, files: undefined })).toBe(false);
+    expect(isArchitectureImpact({ ...reading, files: [{ path: "", state: "not-source", elementIds: [] }] })).toBe(false);
+    expect(isArchitectureImpact({ ...reading, files: [{ path: "a.ts", state: "somewhere", elementIds: [] }] })).toBe(false);
+    expect(isArchitectureImpact({ ...reading, files: [{ path: "a.ts", state: "unparsed" }] })).toBe(false);
+  });
+});
+
 describe("arch.snapshot route", () => {
   async function openFixture(
     provider?: ArchitectureImpactProvider,
@@ -211,6 +267,9 @@ describe("arch.snapshot route", () => {
     // projection is only ever carried by an explicit `unavailable`.
     expect(isArchitectureImpact(payload)).toBe(true);
     expect(payload.dsl).toBe("");
+    // No change was read at all, so there is no file list either: the pane shows
+    // nothing where a commit is concerned rather than an empty commit.
+    expect(payload.files).toEqual([]);
   });
 
   it("hands the commit's changed sources, its one-hop neighbours, tracked paths and declared model to the host", async () => {
@@ -447,6 +506,92 @@ describe("arch.snapshot route", () => {
     expect(sent).toContain("tools/archprobe/probe.go");
     expect(sent).toContain("store/broken.ts");
     expect(sent).not.toContain("docs/specs/notes.md");
+  });
+
+  it("lists the commit's files with the standing the reading gave each", async () => {
+    const provider = recordingProvider((call) => ({
+      ...(snapshotResult() as object),
+      skipped: [
+        ...unreadByHost(call.sources),
+        { path: "store/broken.ts", diagnostics: ["line 3: Unexpected token"] },
+      ],
+    }));
+    const fixture = await openFixture(provider);
+    await writeBindings(fixture.path, [
+      { path_glob: "**/store.ts", element_id: "store" },
+      { path_glob: "**", element_id: "api" },
+    ]);
+    await mkdir(join(fixture.path, "store"), { recursive: true });
+    await mkdir(join(fixture.path, "assets"), { recursive: true });
+    await writeFile(join(fixture.path, "store", "store.ts"), "export const store = 1;\n", "utf8");
+    await writeFile(join(fixture.path, "store", "broken.ts"), "export const = ;\n", "utf8");
+    await writeFile(join(fixture.path, "worker.go"), "package main\n", "utf8");
+    await writeFile(join(fixture.path, "assets", "icon.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00]), "utf8");
+    await writeFile(join(fixture.path, "bulk.ts"), `export const bulk = "${"x".repeat(520_000)}";\n`, "utf8");
+    await rm(join(fixture.path, "caller.ts"));
+    // Stage this commit's files only: the declared model is worktree state and
+    // belongs to no commit under test. A staged deletion is this change too.
+    git(fixture.path, "add", "store/store.ts", "store/broken.ts", "worker.go", "assets/icon.png", "bulk.ts", "caller.ts");
+    git(fixture.path, "commit", "-m", "feat: mix the change");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    const files = payload.files as Array<{ path: string; state: string; status: string; binary: boolean }>;
+    const standing = new Map(files.map((file) => [file.path, file.state]));
+    // Six, not the nine the request carried: the hop's neighbours are context, and
+    // a reader asking what this commit changed is not asking about them.
+    expect(files).toHaveLength(6);
+    expect(standing.get("store/store.ts")).toBe("in-projection");
+    expect(standing.get("store/broken.ts")).toBe("unparsed");
+    expect(standing.get("worker.go")).toBe("unsupported-language");
+    expect(standing.get("assets/icon.png")).toBe("not-source");
+    expect(standing.get("bulk.ts")).toBe("too-large");
+    expect(standing.get("caller.ts")).toBe("deleted");
+    // The row carries the change kind, so the list reads like git does.
+    expect(files.find((file) => file.path === "caller.ts")).toMatchObject({ status: "deleted" });
+    expect(typeof files[0]!.binary).toBe("boolean");
+  });
+
+  it("maps a changed file onto every element its bindings name", async () => {
+    const provider = recordingProvider(() => snapshotResult());
+    const fixture = await openFixture(provider);
+    await writeBindings(fixture.path, [
+      { path_glob: "**/store.ts", element_id: "store" },
+      { path_glob: "**", element_id: "api" },
+    ]);
+    await mkdir(join(fixture.path, "store"), { recursive: true });
+    await writeFile(join(fixture.path, "store", "store.ts"), "export const store = 1;\n", "utf8");
+    git(fixture.path, "add", "store/store.ts");
+    git(fixture.path, "commit", "-m", "feat: move the store");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    const files = payload.files as Array<{ path: string; elementIds: string[] }>;
+    expect(files).toHaveLength(1);
+    // The container and the component above it both hold the path, and the host
+    // marks both, so the row names both rather than picking one.
+    expect(files[0]).toMatchObject({ path: "store/store.ts", elementIds: ["store", "api"] });
+  });
+
+  it("names a commit whose only change is an asset", async () => {
+    // The reading this pane used to answer with silence: a commit that changed
+    // one asset, no symbols, and no sentence about what it did change.
+    const provider = recordingProvider(() => snapshotResult(0));
+    const fixture = await openFixture(provider);
+    await mkdir(join(fixture.path, "assets"), { recursive: true });
+    await writeFile(join(fixture.path, "assets", "icon.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00]), "utf8");
+    git(fixture.path, "add", "assets/icon.png");
+    git(fixture.path, "commit", "-m", "feat: add the plugin logo");
+    const sha = git(fixture.path, "rev-parse", "HEAD");
+
+    const payload = await (await fetch(`${fixture.url}/api/git/commits/${sha}/architecture`)).json();
+    expect(payload.status).toBe("no-impact");
+    // Never an omission: the projection was not about an asset, so naming it unread
+    // would claim a gap in something it was never reading. The list names it instead.
+    expect(payload.omitted).toEqual([]);
+    expect(payload.files).toMatchObject([
+      { path: "assets/icon.png", status: "added", state: "not-source", elementIds: [] },
+    ]);
   });
 });
 

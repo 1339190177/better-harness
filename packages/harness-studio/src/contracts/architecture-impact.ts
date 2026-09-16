@@ -5,6 +5,7 @@
  * code facts + change overlay, carried as text so the client never needs
  * the Rust-side types.
  */
+import type { GitFileChangeKind } from "./git-history.js";
 
 export type ArchitectureImpactStatus = "impact" | "no-impact" | "unavailable";
 
@@ -54,12 +55,53 @@ export interface ArchitectureOmission {
 }
 
 /**
- * What a host must produce. The server owns `kind`, `sha`, `status` and
- * `omitted`: the commit under review, whether the change reached the model, and
- * which files were left out are facts about the request, not claims a provider
- * gets to make about its own output.
+ * Where one changed file stood in the reading.
+ *
+ * A commit's files are not all the reading's business, and a reader has to be
+ * able to tell which is which: a file the projection held, one it was never
+ * about, one that left the tree at this revision, one a bound kept out, and one
+ * a host could not read — as a language it does not extract, or as a parse it
+ * rejected.
  */
-export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted"> & {
+export type ArchitectureImpactFileState =
+  | "in-projection"
+  | "not-source"
+  | "deleted"
+  | "too-large"
+  | "request-budget"
+  | "unsupported-language"
+  | "unparsed";
+
+/** The states a reading may report, for validating a payload that claims one. */
+export const IMPACT_FILE_STATES: readonly ArchitectureImpactFileState[] = [
+  "in-projection",
+  "not-source",
+  "deleted",
+  "too-large",
+  "request-budget",
+  "unsupported-language",
+  "unparsed",
+];
+
+/** One file the commit changed, and what the reading did with it. */
+export interface ArchitectureImpactFile {
+  path: string;
+  status: GitFileChangeKind;
+  additions: number;
+  deletions: number;
+  binary: boolean;
+  state: ArchitectureImpactFileState;
+  /** Declared elements a binding maps this path onto; empty when none does. */
+  elementIds: string[];
+}
+
+/**
+ * What a host must produce. The server owns `kind`, `sha`, `status`,
+ * `files` and `omitted`: the commit under review, whether the change reached
+ * the model, and which files it changed or left out are facts about the
+ * request, not claims a provider gets to make about its own output.
+ */
+export type ArchitectureImpactReading = Omit<ArchitectureImpact, "kind" | "sha" | "status" | "error" | "omitted" | "files"> & {
   /** Source files the host could not extract facts from, which the reading reports. */
   skipped: Array<{ path: string; diagnostics: string[] }>;
 };
@@ -100,6 +142,12 @@ export interface ArchitectureImpact {
   overlay: ArchitectureOverlay;
   /** Structurizr DSL for the projection. */
   dsl: string;
+  /**
+   * Every file this commit changed, with the standing it had in the reading.
+   * The one-hop context is not listed: this is the commit's change, not the
+   * request's payload. Empty on an `unavailable` reading, which read no change.
+   */
+  files: ArchitectureImpactFile[];
   /** Changed files this reading left out, grouped by reason. Empty when none. */
   omitted: ArchitectureOmission[];
   /** Where the projected model came from. Absent on an `unavailable` reading. */
@@ -136,5 +184,21 @@ export function isArchitectureImpact(value: unknown): value is ArchitectureImpac
     && Array.isArray(candidate.relationships)
     && Array.isArray(candidate.impactedHitIds)
     && typeof candidate.dsl === "string"
+    && Array.isArray(candidate.files)
+    && candidate.files.every(isArchitectureImpactFile)
     && Array.isArray(candidate.omitted);
+}
+
+/**
+ * A file row is either the shape the pane renders or the payload is not the
+ * contract: a row without a path or with an unknown standing would render as a
+ * blank line a reader would take for a file named "".
+ */
+function isArchitectureImpactFile(value: unknown): value is ArchitectureImpactFile {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.path === "string"
+    && candidate.path !== ""
+    && IMPACT_FILE_STATES.includes(candidate.state as ArchitectureImpactFileState)
+    && Array.isArray(candidate.elementIds);
 }

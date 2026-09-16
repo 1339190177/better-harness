@@ -352,3 +352,83 @@ test("names the code it could not read, never the documents, inside the pane it 
   // In the narrowest pane the path cannot fit, and it is the notice that gives way.
   expect(measured.at(-1).clipped).toBe(true);
 });
+
+/**
+ * A reading that marks nothing is not the same as a commit that changed nothing:
+ * the pane names the files the commit did change, the standing the reading gave
+ * each, and the element a binding maps it onto — so "which module changed" is
+ * answerable from the list and not only from the diagram.
+ */
+test("lists the commit's changed files with the standing each had in the reading", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${studio.url}/#/impact`);
+  await expect(page.locator(".arch-canvas")).toBeVisible();
+
+  await expect(page.locator(".arch-file")).toHaveCount(3);
+  await expect(page.locator(".arch-files-count")).toContainText("3 files · 1 in projection");
+
+  // Code the projection holds names the element it belongs to.
+  const held = page.locator(".arch-file", { hasText: "store/index.ts" });
+  await expect(held).toContainText("in projection");
+  await expect(held).toContainText("Store");
+  await expect(held).toHaveAttribute("data-standing", "projected");
+
+  // A document is not a gap in the reading: it is out of the projection's scope,
+  // and the pane says that rather than leaving the commit unexplained.
+  const document = page.locator(".arch-file", { hasText: documentPath });
+  await expect(document).toContainText("not source");
+  await expect(document).toHaveAttribute("data-standing", "out-of-scope");
+
+  // Code in a language the host does not extract is a named gap in it.
+  const unreadable = page.locator(".arch-file", { hasText: unread });
+  await expect(unreadable).toContainText("language not extracted");
+  await expect(unreadable).toHaveAttribute("data-standing", "unread");
+});
+
+/**
+ * The list is a pane of its own: bounded, self-scrolling, clipped rather than
+ * widening the surface, and collapsible so a reader who wants the whole diagram
+ * can have it back.
+ */
+test("keeps the changed-file pane bounded at every width the surface can take", async ({ page }) => {
+  const measured = [];
+  for (const width of [1600, 1280, 900, 600]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${studio.url}/#/impact`);
+    await expect(page.locator(".arch-file-list")).toBeVisible();
+    measured.push(await page.evaluate(() => {
+      const box = (selector) => {
+        const rect = document.querySelector(selector)?.getBoundingClientRect();
+        return { right: Math.round(rect?.right ?? -1), width: Math.round(rect?.width ?? -1) };
+      };
+      const level = document.querySelector(".arch-zoom-level")?.textContent ?? "";
+      return {
+        width: window.innerWidth,
+        pane: box(".arch-pane"),
+        files: box(".arch-files"),
+        zoom: Number.parseInt(level, 10),
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    }));
+  }
+
+  for (const row of measured) {
+    expect(row.pageOverflow, `page overflow at ${row.width}px`).toBe(false);
+    // Clipped inside the pane it sits in, and never wider than it.
+    expect(row.files.right, `file list inside its pane at ${row.width}px`).toBeLessThanOrEqual(row.pane.right + 1);
+    expect(row.files.width, `file list width at ${row.width}px`).toBeLessThanOrEqual(row.pane.width);
+    // A bounded list leaves the diagram a readable share of the pane.
+    expect(row.zoom, `zoom at ${row.width}px`).toBeGreaterThanOrEqual(50);
+  }
+
+  // Collapsing hands the height back to the diagram, and the control says which
+  // state it is in rather than relying on the caret alone.
+  const toggle = page.getByRole("button", { name: "Changed files" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const folded = await page.locator(".arch-zoom-level").innerText();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".arch-file-list")).toHaveCount(0);
+  expect(Number.parseInt(await page.locator(".arch-zoom-level").innerText(), 10))
+    .toBeGreaterThanOrEqual(Number.parseInt(folded, 10));
+});

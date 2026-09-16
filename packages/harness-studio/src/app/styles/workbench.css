@@ -2420,10 +2420,17 @@
 }
 
 /* ── Architecture Impact Pane ─────────────────────────────────────────── */
-/* One pane, three rows: a title, a toolbar whose content is a reading rather
-   than a fixed label, and the canvas. The column is bounded so a long path in the
-   toolbar is clipped inside the pane instead of widening it past the surface. */
-.arch-pane { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; background: var(--color-panel); }
+/* One pane, one elastic canvas and the rows around it: a title, a toolbar whose
+   content is a reading rather than a fixed label, a save outcome when there is one,
+   and the changed-file pane. The column is bounded so a long path in the toolbar is
+   clipped inside the pane instead of widening it past the surface. Flex rather than
+   a fixed row template, because two of those rows are optional and a template would
+   hand the diagram's share to whichever of them appeared. */
+.arch-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--color-panel); }
+.arch-pane > .arch-header,
+.arch-pane > .arch-toolbar,
+.arch-pane > .arch-save-note,
+.arch-pane > .arch-files { flex: 0 0 auto; }
 .arch-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
 .arch-header strong { flex: 0 0 auto; color: var(--color-text); }
 .arch-header span { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--color-text-muted); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
@@ -2450,7 +2457,27 @@
 .arch-agent-toolbar button { border: none; background: transparent; color: var(--color-text-muted); cursor: pointer; padding: 2px; }
 .arch-agent-intro { margin: 0; color: var(--color-text-muted); font-size: var(--type-meta-size); }
 .arch-agent-intro code { font-family: var(--font-mono, monospace); }
-.arch-canvas { position: relative; overflow: hidden; padding: 0; cursor: grab; }
+/* The commit's own change, docked under the diagram. A pane of its own and
+   bounded: a large commit scrolls here instead of taking the diagram's height,
+   and a long path clips here instead of widening the surface. */
+.arch-files { display: flex; flex-direction: column; min-height: 0; max-height: 38%; border-top: 1px solid var(--color-border); }
+.arch-files-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--space-md); }
+.arch-files-toggle { display: flex; align-items: center; gap: 4px; padding: 2px 0; border: none; background: none; color: var(--color-text); cursor: pointer; font-family: var(--font-ui); font-size: var(--type-meta-size); }
+.arch-files-toggle:hover { color: var(--color-primary); }
+.arch-files-toggle:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.arch-files-count { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--color-text-muted); font-size: var(--type-meta-size); text-overflow: ellipsis; white-space: nowrap; }
+.arch-file-list { min-height: 0; margin: 0; padding: 0 0 var(--space-xs); overflow: auto; list-style: none; }
+.arch-file { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: baseline; gap: var(--space-sm); padding: 2px var(--space-md); font-size: var(--type-meta-size); }
+.arch-file-status { color: var(--color-text-muted); font-family: var(--font-code); text-align: center; }
+.arch-file-path { overflow: hidden; color: var(--color-text); font-family: var(--font-code); text-overflow: ellipsis; white-space: nowrap; }
+.arch-file-state { color: var(--color-text-muted); white-space: nowrap; }
+/* Outside the projection and unread by it are different findings: one is scoped
+   out, the other is a named gap in the reading. */
+.arch-file[data-standing="out-of-scope"] .arch-file-state { color: var(--color-text-subtle); }
+.arch-file[data-standing="unread"] .arch-file-state { color: var(--color-warning); }
+.arch-file-element { max-width: 32ch; overflow: hidden; color: var(--color-text-subtle); text-overflow: ellipsis; white-space: nowrap; }
+/* The diagram takes what is left after the rows around it. */
+.arch-canvas { flex: 1 1 auto; position: relative; min-height: 0; overflow: hidden; padding: 0; cursor: grab; }
 .arch-canvas:active { cursor: grabbing; }
 /* The diagram is drawn into a measured viewport, so a docked pane can fit it
    rather than scroll a picture it never shows whole. */
