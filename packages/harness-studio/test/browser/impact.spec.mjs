@@ -194,6 +194,111 @@ test("keeps the projection readable at every width the surface can take", async 
 });
 
 /**
+ * The generation pane is a reading of its own rather than a strip inside the
+ * projection: it opens as a column beside the diagram, is resized by the shell's
+ * own divider, and hands the surface — and focus — back when it closes.
+ */
+test("docks the AI model pane beside the projection and returns focus when it closes", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(`${studio.url}/#/impact`);
+  await expect(page.locator(".arch-canvas")).toBeVisible();
+
+  const trigger = page.getByRole("button", { name: "Generate with AI" });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+  const pane = page.locator("#impact-agent-panel .arch-agent-panel");
+  await expect(pane).toBeVisible();
+  const [paneBox, projectionBox] = await Promise.all([
+    pane.boundingBox(),
+    page.locator(".impact-projection").boundingBox(),
+  ]);
+  // Beside, not over: the pane's column starts where the projection's ends.
+  expect(paneBox.x).toBeGreaterThanOrEqual(projectionBox.x + projectionBox.width - 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  // The divider it shares with the projection is keyboard operable, and growing the
+  // pane is the arrow that points at the edge it is docked to.
+  const sash = page.getByRole("separator", { name: "Resize the AI model pane" });
+  await expect(sash).toBeVisible();
+  const docked = Math.round(paneBox.width);
+  await sash.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(async () => Math.round((await pane.boundingBox()).width)).toBeGreaterThan(docked);
+
+  await page.getByRole("button", { name: "Close AI generation" }).click();
+  await expect(page.locator("#impact-agent-panel")).toHaveCount(0);
+  // The chooser comes back, and the reader is where they left off.
+  await expect(page.locator(".impact-picker")).toBeVisible();
+  await expect(trigger).toBeFocused();
+});
+
+/**
+ * The generation pane competes with the readings the surface already had, so it
+ * only exists at widths that can hold it: the chooser yields, then the diagram,
+ * and neither leaves the pane a sliver or the surface overflowing.
+ */
+test("keeps the generation pane readable at every width the surface can take", async ({ page }) => {
+  const measured = [];
+  for (const width of [1600, 1100, 900, 760, 600, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${studio.url}/#/impact`);
+    await expect(page.locator(".impact-view")).toBeVisible();
+    // A fragment navigation does not reload the app, so the pane opened at the
+    // first width stays open for the rest: every width is measured with it open.
+    // Its state is read by attribute: a role locator loses the trigger at the
+    // widths where the projection it sits in steps aside.
+    const trigger = page.locator(".arch-btn[aria-expanded]");
+    if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+    await expect(page.locator("#impact-agent-panel .arch-agent-panel")).toBeVisible();
+    measured.push(await page.evaluate(() => {
+      const box = (selector) => {
+        const element = document.querySelector(selector);
+        const rect = element?.getBoundingClientRect();
+        return { width: Math.round(rect?.width ?? -1), shown: element !== null && element.getClientRects().length > 0 };
+      };
+      return {
+        surface: box(".impact-view").width,
+        picker: box(".impact-picker"),
+        projection: box(".impact-projection"),
+        sash: box(".impact-view > .studio-pane-sash"),
+        pane: box(".arch-agent-panel"),
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    }));
+  }
+
+  for (const row of measured) {
+    expect(row.pageOverflow, `page overflow at ${row.surface}px`).toBe(false);
+    // The pane is never a sliver, and it never grows past the surface it docks in.
+    expect(row.pane.width, `pane at ${row.surface}px`).toBeGreaterThanOrEqual(280);
+    expect(row.pane.width, `pane at ${row.surface}px`).toBeLessThanOrEqual(row.surface);
+    // The diagram yields to the pane: it is withdrawn only where the pane holds the
+    // whole surface, never left beside it as a sliver.
+    if (!row.projection.shown) expect(row.pane.width, `pane holds ${row.surface}px`).toBe(row.surface);
+    // The visible columns partition the surface exactly, so none is starved and none overlaps.
+    const columns = (row.picker.shown ? row.picker.width : 0) + (row.projection.shown ? row.projection.width : 0)
+      + (row.sash.shown ? row.sash.width : 0) + row.pane.width;
+    expect(columns, `columns at ${row.surface}px`).toBe(row.surface);
+  }
+
+  // The widest surface holds all three readings; the narrowest holds the one the
+  // run writes for, because its model is what the commit projects onto next.
+  expect(measured[0].picker.shown, "chooser at the widest surface").toBe(true);
+  expect(measured[0].projection.shown, "diagram at the widest surface").toBe(true);
+  const narrowest = measured.at(-1);
+  expect(narrowest.projection.shown).toBe(false);
+  expect(narrowest.pane.width).toBe(narrowest.surface);
+
+  // Closing there brings the diagram back — and the reader with it, rather than
+  // dropping focus on a pane that no longer exists.
+  await page.getByRole("button", { name: "Close AI generation" }).click();
+  await expect(page.locator(".arch-canvas")).toBeVisible();
+  await expect(page.locator(".arch-btn[aria-expanded]")).toBeFocused();
+});
+
+/**
  * The notice is the one place a reading admits what it could not read, and it
  * prints a path the surface does not control: a document is not part of the
  * reading at all, and a path that does not fit is clipped inside the pane it sits

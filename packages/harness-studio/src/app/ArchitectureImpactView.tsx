@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { isArchitectureImpact, type ArchitectureElement, type ArchitectureImpact } from "../contracts/architecture-impact.js";
 import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
-import { ArchitectureModelAgentPanel } from "./ArchitectureModelAgentPanel.js";
 
 interface Props {
   sha: string;
   /** Optional short sha, so a surface that owns the commit selection can show it. */
   label?: string;
+  /** The surface owns the generation pane, so it also owns the button that opens it. */
+  agentTrigger: RefObject<HTMLButtonElement | null>;
+  /** Whether the model-generation pane is open beside this projection. */
+  agentOpen: boolean;
+  onToggleAgent: () => void;
 }
 
 interface DiagramBox {
@@ -78,7 +82,7 @@ const MIN_SCALE = 0.15;
 const MIN_LEGIBLE_SCALE = 0.5;
 const POPUP_W = 296;
 
-export function ArchitectureImpactView({ sha, label }: Props) {
+export function ArchitectureImpactView({ sha, label, agentTrigger, agentOpen, onToggleAgent }: Props) {
   const [data, setData] = useState<ArchitectureImpact | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +93,6 @@ export function ArchitectureImpactView({ sha, label }: Props) {
   const [saving, setSaving] = useState(false);
   /** The last save outcome, shown beside the badge; cleared when the commit changes. */
   const [saveNote, setSaveNote] = useState<string | null>(null);
-  /** Open state of the docked AI model-generation panel. */
-  const [agentOpen, setAgentOpen] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -319,7 +321,7 @@ export function ArchitectureImpactView({ sha, label }: Props) {
         </span>
         {data.dsl && <button type="button" className="arch-btn" onClick={exportDsl}>Export .dsl</button>}
         <button type="button" className="arch-btn" onClick={exportSvg}>Export .svg</button>
-        <button type="button" className="arch-btn" onClick={() => setAgentOpen((open) => !open)} aria-pressed={agentOpen}>Generate with AI</button>
+        <button ref={agentTrigger} type="button" className="arch-btn" aria-expanded={agentOpen} aria-controls={agentOpen ? "impact-agent-panel" : undefined} onClick={onToggleAgent}>Generate with AI</button>
         {data.modelSource?.origin === "generated" && (
           <button type="button" className="arch-btn" onClick={() => { void saveModel(false); }} disabled={saving}>
             {saving ? "Saving…" : "Save as declared model"}
@@ -327,7 +329,6 @@ export function ArchitectureImpactView({ sha, label }: Props) {
         )}
       </div>
       {saveNote !== null && <div className="arch-save-note" role="status">{saveNote}</div>}
-      {agentOpen && <ArchitectureModelAgentPanel onClose={() => setAgentOpen(false)} />}
       <div
         className="arch-canvas"
         ref={canvasRef}

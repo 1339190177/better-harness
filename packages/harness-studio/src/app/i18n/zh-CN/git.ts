@@ -24,6 +24,7 @@ export const git: typeof enGit = {
     resizeRefs: "调整引用面板大小",
     resizeDetail: "调整提交详情面板大小",
     resizeMessage: "调整提交信息区大小",
+    resizeImpactAgent: "调整 AI 模型面板大小",
   },
   refs: {
     aria: "仓库引用",

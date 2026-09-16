@@ -2377,6 +2377,30 @@
 .impact-commit-meta code { font-family: var(--font-code); }
 .impact-projection { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 0; }
 .impact-projection > .arch-pane { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; }
+/* The generation pane is a reading of its own, so the surface grows a column for
+   it: the chooser, the projection, the divider, and the pane. Grid placement is
+   stated rather than inferred, because hiding a column would otherwise slide the
+   divider into it. */
+.impact-view.has-agent { grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 6px var(--impact-agent-width, var(--secondary-pane-width)); grid-template-rows: minmax(0, 1fr); }
+.impact-view.has-agent > .impact-picker { grid-column: 1; }
+.impact-view.has-agent > .impact-projection { grid-column: 2; }
+.impact-view.has-agent > .studio-pane-sash { grid-column: 3; }
+.impact-view.has-agent > .impact-agent-slot { grid-column: 4; }
+/* Three readings do not fit at every width. The chooser yields before either
+   reading is starved, and comes back when the pane closes. */
+.impact-view.agent-compact { grid-template-columns: minmax(0, 1fr) 6px var(--impact-agent-width, var(--secondary-pane-width)); }
+.impact-view.agent-compact > .impact-picker { display: none; }
+.impact-view.agent-compact > .impact-projection { grid-column: 1; }
+.impact-view.agent-compact > .studio-pane-sash { grid-column: 2; }
+.impact-view.agent-compact > .impact-agent-slot { grid-column: 3; }
+/* Narrower than one reading each, the pane the run writes for holds the surface
+   alone: its model is what the reader reopens the commit to project onto. */
+.impact-view.agent-narrow { grid-template-columns: minmax(0, 1fr); }
+.impact-view.agent-narrow > .impact-picker,
+.impact-view.agent-narrow > .impact-projection,
+.impact-view.agent-narrow > .studio-pane-sash { display: none; }
+.impact-view.agent-narrow > .impact-agent-slot { grid-column: 1; }
+.impact-agent-slot { display: flex; min-width: 0; min-height: 0; }
 .impact-notice { display: flex; align-items: center; gap: var(--space-sm); margin: 0; padding: var(--space-md); color: var(--color-text-muted); font-size: var(--type-meta-size); }
 .impact-empty { display: grid; place-content: center; justify-items: center; gap: var(--space-sm); flex: 1; color: var(--color-text-muted); }
 .impact-empty p { margin: 0; font-size: var(--type-meta-size); }
@@ -2415,9 +2439,12 @@
    one without competing with the element count for the header's flexible span. */
 .arch-header .arch-badge { flex: 0 0 auto; min-width: 0; overflow: visible; padding: 1px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-pill, 999px); background: var(--color-surface); color: var(--color-text-muted); font-size: var(--type-meta-size); white-space: nowrap; }
 .arch-save-note { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); font-size: var(--type-meta-size); }
-/* The AI model-generation panel docks under the toolbar, above the diagram, and
-   is bounded so the conversation scrolls inside it rather than growing the pane. */
-.arch-agent-panel { display: flex; flex-direction: column; gap: var(--space-sm); max-height: 46%; overflow: auto; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+/* The model-generation conversation docks beside the projection as a pane of its
+   own, so the transcript scrolls inside it rather than growing the surface. The
+   divider it shares with the projection is the shell's own resize sash. */
+.arch-agent-panel { display: flex; flex: 1; flex-direction: column; gap: var(--space-sm); min-width: 0; min-height: 0; overflow: hidden; padding: var(--space-sm) var(--space-md); border-left: 1px solid var(--color-border-strong); background: var(--color-panel); }
+.arch-agent-panel > .acp-session-stream { flex: 1; min-height: 0; }
+.arch-agent-composer { flex: 0 0 auto; }
 .arch-agent-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
 .arch-agent-toolbar strong { color: var(--color-text); }
 .arch-agent-toolbar button { border: none; background: transparent; color: var(--color-text-muted); cursor: pointer; padding: 2px; }

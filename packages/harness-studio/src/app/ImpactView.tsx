@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { GitCommit } from "@phosphor-icons/react/GitCommit";
 import { SpinnerGap } from "@phosphor-icons/react/SpinnerGap";
 import { isGitLogPage, type GitHistoryCommit } from "../contracts/git-history.js";
 import { ArchitectureImpactView } from "./ArchitectureImpactView.js";
+import { ArchitectureModelAgentPanel } from "./ArchitectureModelAgentPanel.js";
+import { PaneSash } from "./shell/PaneSash.js";
 
 interface Props {
   /** Whether a native architecture host is staged; without one there is nothing to project. */
@@ -12,6 +14,16 @@ interface Props {
 
 /** How many commits the picker holds at once. It is a chooser, not the history view. */
 const PAGE_SIZE = 60;
+/** The generation pane's own column: what a transcript and its composer need. */
+const AGENT_WIDTH = { default: 360, min: 280 };
+/** What the columns beside the pane keep before it yields: the projection is the reading. */
+const PICKER_MIN_WIDTH = 260;
+const PROJECTION_MIN_WIDTH = 240;
+const SASH_WIDTH = 6;
+/** Below this a three-column surface starves both readings, so the chooser yields first. */
+const AGENT_COMPACT_WIDTH = 1000;
+/** Below this one reading fits at a time, so the pane the run writes for takes the surface. */
+const AGENT_NARROW_WIDTH = 760;
 
 /**
  * The commit's projection onto the declared architecture, as a surface of its own.
@@ -30,13 +42,30 @@ export function ImpactView({ hostAvailable }: Props): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string>();
   const [revision, setRevision] = useState(0);
+  /** Whether the model-generation pane is open beside the projection. */
+  const [agentOpen, setAgentOpen] = useState(false);
+  /** The pane's width as the reader last set it, before it is fitted to the surface. */
+  const [agentWant, setAgentWant] = useState(AGENT_WIDTH.default);
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
   const request = useRef(0);
   const list = useRef<HTMLUListElement>(null);
+  const root = useRef<HTMLElement>(null);
+  const agentTrigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const timer = globalThis.setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => globalThis.clearTimeout(timer);
   }, [searchInput]);
+
+  // The pane's column is bounded by the surface it sits in, and a sidebar or a
+  // drawer decides how wide that is, so the frame is measured rather than assumed.
+  useEffect(() => {
+    const element = root.current;
+    if (element === null) return;
+    const observer = new ResizeObserver(([entry]) => setFrame({ width: entry!.contentRect.width, height: entry!.contentRect.height }));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,9 +97,30 @@ export function ImpactView({ hostAvailable }: Props): React.JSX.Element {
   }, [search, revision, t]);
 
   const selected = commits.find((commit) => commit.sha === selectedSha);
+  // Before the frame is measured the stylesheet's own default stands, so the pane
+  // opens at its intended width rather than at a width guessed from zero.
+  const measured = frame.width > 0;
+  const agentMax = measured ? Math.max(AGENT_WIDTH.min, frame.width - PICKER_MIN_WIDTH - PROJECTION_MIN_WIDTH - SASH_WIDTH) : AGENT_WIDTH.default;
+  const agentWidth = Math.min(Math.max(agentWant, AGENT_WIDTH.min), agentMax);
+  // Two readings still fit in a compact surface, one holds a narrow one. The
+  // breakpoint is the surface's own width, not the window's.
+  const agentSqueeze = agentOpen && measured && frame.width <= AGENT_COMPACT_WIDTH
+    ? frame.width <= AGENT_NARROW_WIDTH ? " agent-narrow" : " agent-compact"
+    : "";
+
+  /** Closing hands focus back to the trigger, so the pane is not a one-way door. */
+  function closeAgent(): void {
+    setAgentOpen(false);
+    requestAnimationFrame(() => agentTrigger.current?.focus());
+  }
 
   return (
-    <main className="impact-view" aria-label={t("impact.aria")}>
+    <main
+      ref={root}
+      className={`impact-view${agentOpen ? " has-agent" : ""}${agentSqueeze}`}
+      style={measured ? { "--impact-agent-width": `${agentWidth}px` } as CSSProperties : undefined}
+      aria-label={t("impact.aria")}
+    >
       <section className="impact-picker" aria-label={t("impact.commits")}>
         <header className="git-pane-header"><strong>{t("impact.commits")}</strong>{!loading && <span>{commits.length}</span>}</header>
         <div className="impact-search">
@@ -118,8 +168,26 @@ export function ImpactView({ hostAvailable }: Props): React.JSX.Element {
           ? <p className="impact-notice" role="status">{t("impact.hostUnavailable")}</p>
           : selectedSha === undefined
             ? <div className="impact-empty"><GitCommit aria-hidden="true" size={24} /><p>{t("impact.pick")}</p></div>
-            : <ArchitectureImpactView key={selectedSha} sha={selectedSha} label={selected?.shortSha} />}
+            : <ArchitectureImpactView key={selectedSha} sha={selectedSha} label={selected?.shortSha} agentTrigger={agentTrigger} agentOpen={agentOpen} onToggleAgent={() => setAgentOpen((open) => !open)} />}
       </section>
+      {agentOpen && (
+        <PaneSash
+          invert
+          orientation="vertical"
+          label={t("panes.resizeImpactAgent")}
+          size={agentWidth}
+          min={AGENT_WIDTH.min}
+          max={agentMax}
+          fallback={AGENT_WIDTH.default}
+          disabled={!measured}
+          onSize={setAgentWant}
+        />
+      )}
+      {agentOpen && (
+        <div className="impact-agent-slot" id="impact-agent-panel">
+          <ArchitectureModelAgentPanel onClose={closeAgent} />
+        </div>
+      )}
     </main>
   );
 

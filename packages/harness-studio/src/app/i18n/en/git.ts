@@ -22,6 +22,7 @@ export const git = {
     resizeRefs: "Resize the refs pane",
     resizeDetail: "Resize the commit details pane",
     resizeMessage: "Resize the commit message",
+    resizeImpactAgent: "Resize the AI model pane",
   },
   refs: {
     aria: "Repository refs",
