@@ -73,6 +73,12 @@ a `declared` one on disk. A `GET` reading never writes to the user's repository.
   candidate elements, and propose external systems, but every element it keeps
   retains resolvable path evidence. The skill never invents a binding to a path
   that does not exist.
+- **AC-7** The agent session starts whatever the project's size: the evidence
+  pack travels as a file inside the agent's own fence, so the run request the
+  server streams stays within the protocol's 65_536-character prompt bound for a
+  two-hundred-element candidate. A session the host refuses, and a run that fails
+  after its stream opened, both report their reason to the pane instead of a
+  generic failure.
 
 ## Non-goals
 
@@ -206,6 +212,35 @@ a `declared` one on disk. A `GET` reading never writes to the user's repository.
   panel's visual review are pending a desktop run. Without the Rust host the Node
   SDK executor has no `allowRoots` fence; the entry is intended for the desktop
   shell where the host is present.
+
+### Slice 3c — the run's evidence travels as a file (implemented)
+
+- AC-7 (start): the first desktop run refused to start. The route assembled the
+  candidate, its bindings, the manifests, and the source directories **into the
+  prompt**, and a real 200-element project makes that 74,788 characters — past the
+  65_536-character bound `parseHarnessRunRequestV1` enforces — so the route
+  answered `400` before any stream existed. `architectureEvidencePack` now writes
+  that pack as `candidate.json` inside the agent's own fence (the directory it
+  already writes to), and `architectureBootstrapPrompt` names the file instead of
+  carrying it: the instruction is 876 characters for that same project. The pack
+  leaves with the run, and a `candidate.json` the reader already had is neither
+  overwritten nor deleted — the run takes a scoped name instead.
+- AC-7 (reason): the pane answered `The architecture agent session failed.` to
+  every refusal, because its `catch` replaced the host's message. It now shows
+  that message, `streamRun` prefers the reason a host wrote over its status line,
+  and a run that throws after its stream opened ends that stream with a
+  `run-error` event rather than a response that simply stops — before, the reason
+  reached neither the pane nor a log.
+- Verified by: `npx vitest run test/architecture-acp.test.ts
+  test/run-stream.test.ts` (2 files, 7 tests) — the pack's contents and grounding,
+  the scoped evidence write, a 200-element candidate staying past the prompt bound
+  while the prompt does not, and a failed run reported as the terminal event of its
+  stream. Replayed against the project that failed (200 elements, 1,405 tracked
+  paths): pack 74,095 characters, prompt 876, the evidence file round-trips and is
+  removed. `npx tsc --noEmit` clean, `npx vitest run` 93 files / 732 tests passing,
+  and `npx playwright test` 125 passing in `packages/harness-studio`.
+- Still open: the end-to-end session against a real ACP agent and the Rust host,
+  and the panel's visual review, remain pending a desktop run.
 
 ### Slice 4 — still open
 

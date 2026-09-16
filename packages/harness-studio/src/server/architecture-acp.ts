@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { parseHarnessRunRequestV1 } from "@qoder-ai/harness/protocol";
@@ -18,6 +19,9 @@ export const architectureAcpProfiles = (options: HarnessStudioServerOptions) =>
 /** Bound the evidence pack so a large monorepo stays a prompt, not a dump. */
 const MAX_EVIDENCE_DIRS = 120;
 const MAX_MANIFESTS = 60;
+
+/** Where the agent reads the candidate it refines; a file inside its own fence. */
+export const EVIDENCE_FILE = "candidate.json";
 
 const SOURCE = `language 0.3
 skill architecture-model-bootstrap {
@@ -44,34 +48,62 @@ function sourceDirectories(trackedPaths: readonly string[]): string[] {
 }
 
 /**
- * The prompt that turns the generated candidate into a confirmed model.
+ * The evidence the agent refines: the generated candidate, the bindings it
+ * grounds, and the layout facts it names elements from.
  *
- * Pure: the caller supplies the candidate model, the tracked paths, and the
- * target file paths, and this builds the instruction plus the evidence pack the
- * agent refines. The agent reads its evidence here rather than from the
- * filesystem, because its write fence is the architecture directory alone.
+ * Pure, and written as a file inside the agent's own working directory rather
+ * than carried in the prompt. The pack scales with the project, while the run
+ * protocol bounds a prompt at 65_536 characters — a two-hundred-element
+ * candidate alone is past that, so inlining it makes the run refuse to start.
+ * The file is compact rather than pretty: it is read by an agent, not a person.
  */
-export function architectureBootstrapPrompt(input: {
+export function architectureEvidencePack(input: {
   candidate: unknown;
   bindings: ReadonlyArray<{ pathGlob: string; elementId: string }>;
   trackedPaths: readonly string[];
-  modelPath: string;
-  bindingsPath: string;
 }): string {
   const manifests = input.trackedPaths
     .filter((path) => path.endsWith("package.json") || path.endsWith("Cargo.toml") || path.endsWith("go.mod") || path.endsWith("pyproject.toml"))
     .slice(0, MAX_MANIFESTS);
+  return JSON.stringify({
+    candidateModel: input.candidate,
+    candidateBindings: input.bindings.map((binding) => ({ path_glob: binding.pathGlob, element_id: binding.elementId })),
+    manifests,
+    sourceDirectories: sourceDirectories(input.trackedPaths),
+  });
+}
+
+/**
+ * The prompt that turns the generated candidate into a confirmed model.
+ *
+ * Pure: the caller names the file the evidence travelled in, so the instruction
+ * is the same size whatever the project's structure is.
+ */
+export function architectureBootstrapPrompt(input: {
+  evidencePath: string;
+  modelPath: string;
+  bindingsPath: string;
+}): string {
   return [
     "Refine this generated architecture model into a confirmed one for the Better Harness Impact pane.",
+    `Read \`${input.evidencePath}\` in your working directory: it carries the candidate model, its bindings, the project's manifests, and the directories that hold source. It is your only evidence.`,
     "Rename, describe, re-kind (Container vs Component), merge, and split the candidate elements to match the project's real structure, and propose grounded relationships. Follow the architecture-model-bootstrap skill's grounding rules: keep arch-core's shape, keep every element bound to a real path, and never invent a binding to a path that does not exist. Keep proposed external systems and people clearly labelled in their descriptions.",
     `When done, write the refined model as JSON to \`${input.modelPath}\` and the bindings array to \`${input.bindingsPath}\` in the working directory. Do not write anywhere else.`,
-    JSON.stringify({
-      candidateModel: input.candidate,
-      candidateBindings: input.bindings.map((binding) => ({ path_glob: binding.pathGlob, element_id: binding.elementId })),
-      manifests,
-      sourceDirectories: sourceDirectories(input.trackedPaths),
-    }),
   ].join("\n\n");
+}
+
+/**
+ * Write the candidate pack into the agent's fence, under a name this run owns.
+ *
+ * A file already called `candidate.json` is the reader's, so the run takes a
+ * scoped name rather than replacing it, and only what this run created is
+ * removed when the run ends.
+ */
+export async function writeArchitectureEvidence(directory: string, pack: string, runId: string): Promise<string> {
+  const scoped = `candidate-${runId.replace(/[^a-zA-Z0-9-]/gu, "")}.json`;
+  const name = existsSync(join(directory, EVIDENCE_FILE)) ? scoped : EVIDENCE_FILE;
+  await writeFile(join(directory, name), pack, "utf8");
+  return name;
 }
 
 /**
@@ -105,12 +137,15 @@ export async function streamArchitectureAcp(
   // allow-root. It is created first so the fence resolves a real directory.
   const architectureDir = join(repoRoot, ".better-harness", "architecture");
   await mkdir(architectureDir, { recursive: true });
+  const evidenceName = await writeArchitectureEvidence(architectureDir, architectureEvidencePack({
+    candidate: resolved.model.modelJson,
+    bindings: resolved.model.bindings,
+    trackedPaths,
+  }), input.runId);
 
   const buildPrompt = (userRequest?: string): string => {
     const base = architectureBootstrapPrompt({
-      candidate: resolved.model.modelJson,
-      bindings: resolved.model.bindings,
-      trackedPaths,
+      evidencePath: evidenceName,
       // Relative to the agent's cwd (the architecture directory itself).
       modelPath: "model.json",
       bindingsPath: "bindings.json",
@@ -139,6 +174,8 @@ export async function streamArchitectureAcp(
   } finally {
     abortAcpRun(state, input.runId);
     state.acpRuns.delete(input.runId);
+    // The candidate pack was this run's evidence, so it leaves with the run.
+    await rm(join(architectureDir, evidenceName), { force: true }).catch(() => undefined);
   }
 }
 

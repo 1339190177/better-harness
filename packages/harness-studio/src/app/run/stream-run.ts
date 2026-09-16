@@ -12,6 +12,22 @@ export interface StudioRunProjectBinding {
 }
 
 /**
+ * Why the run was refused, as the reader is owed it.
+ *
+ * A host answers a refused run with its reason in the body. Showing only the
+ * status would hide the one sentence that says what to fix, so the reason is
+ * preferred and the status is kept beside it; a body that is not JSON is
+ * reported as it stands.
+ */
+function runRequestFailure(status: number, detail: string): string {
+  try {
+    const payload = JSON.parse(detail) as { error?: unknown };
+    if (typeof payload.error === "string" && payload.error !== "") return `${payload.error} (HTTP ${status})`;
+  } catch { /* Not a reason this host wrote: the status and the body are all there is. */ }
+  return `Run request failed (${status}): ${detail}`;
+}
+
+/**
  * Post one Harness run and fold its native event stream into state updates.
  *
  * Batching through one animation frame keeps a chatty Agent from re-rendering
@@ -46,7 +62,7 @@ export async function streamRun(
   });
   if (!response.ok || response.body === null) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Run request failed (${response.status}): ${detail}`);
+    throw new Error(runRequestFailure(response.status, detail));
   }
   let pendingEvents: HarnessRunStreamEventV1[] = [];
   let frame: number | undefined;

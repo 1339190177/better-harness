@@ -16,6 +16,8 @@ export interface StudioRunStreamOptions {
   cwd?: string;
   sourceRoot?: string;
   executorFactory: HarnessExecutorFactory;
+  /** The runner itself, injectable so a host can be tested against a run that throws. */
+  run?: typeof runHarness;
   /** Invoked after request validation and before the executor is created. */
   onInput?: (input: { prompt: string; threadId: string; runId: string }) => void;
   runAbortSignal?: (runId: string) => AbortSignal | undefined;
@@ -55,26 +57,29 @@ export async function streamHarnessRun(
   const disconnect = (): void => {
     if (!terminal && !response.writableEnded) options.onClientDisconnect?.(input.runId);
   };
+  /** One place builds the envelope, so a reason this host reports itself is a
+   * stream event like any other rather than a sentence the reader never sees. */
+  const emit = (event: HarnessRunStreamEventV1["event"]): void => {
+    sequence += 1;
+    if (event.type === "run-finished") terminal = true;
+    const envelope: HarnessRunStreamEventV1 = {
+      kind: HARNESS_RUN_STREAM_EVENT_KIND,
+      threadId: input.threadId,
+      runId: input.runId,
+      sequence,
+      event,
+    };
+    response.write(encodeSseData(envelope));
+  };
   response.once("close", disconnect);
   try {
     const abortSignal = options.runAbortSignal?.(input.runId);
-    await runHarness({
+    await (options.run ?? runHarness)({
       source: options.source,
       prompt: input.prompt,
       threadId: input.threadId,
       runId: input.runId,
-      onRunEvent: (event) => {
-        sequence += 1;
-        if (event.type === "run-finished") terminal = true;
-        const envelope: HarnessRunStreamEventV1 = {
-          kind: HARNESS_RUN_STREAM_EVENT_KIND,
-          threadId: input.threadId,
-          runId: input.runId,
-          sequence,
-          event,
-        };
-        response.write(encodeSseData(envelope));
-      },
+      onRunEvent: emit,
       ...(options.harnessId === undefined ? {} : { harnessId: options.harnessId }),
       ...(options.runtimeId === undefined ? {} : { runtimeId: options.runtimeId }),
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
@@ -82,6 +87,13 @@ export async function streamHarnessRun(
       ...(abortSignal === undefined ? {} : { abortSignal }),
       executorFactory: options.executorFactory,
     });
+  } catch (error) {
+    // A run that fails after the stream opened has no other channel. Without a
+    // terminal event the reader sees a stream that simply stopped, and the reason
+    // is lost on both sides.
+    if (!terminal && !response.writableEnded && !response.destroyed) {
+      emit({ type: "run-error", message: error instanceof Error ? error.message : "The run failed." });
+    }
   } finally {
     response.removeListener("close", disconnect);
     if (!response.writableEnded) response.end();

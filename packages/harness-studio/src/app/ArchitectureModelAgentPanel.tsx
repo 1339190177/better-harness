@@ -65,9 +65,11 @@ export function ArchitectureModelAgentPanel({ onClose }: { onClose: () => void }
         if (controller.signal.aborted) return;
         stateRef.current = events.reduce(applyHarnessRunEvent, stateRef.current); setState(stateRef.current);
       }, controller.signal);
-    } catch {
+    } catch (error) {
       if (!controller.signal.aborted) {
-        stateRef.current = settleRunState({ ...stateRef.current, status: "error", error: "The architecture agent session failed." }, "interrupted");
+        // The reason a session could not start is the one thing the reader has to
+        // act on, so it is shown rather than replaced by a generic failure.
+        stateRef.current = settleRunState({ ...stateRef.current, status: "error", error: error instanceof Error ? error.message : "The architecture agent session failed." }, "interrupted");
         setState(stateRef.current);
       }
     }
