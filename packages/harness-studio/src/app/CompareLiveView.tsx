@@ -12,14 +12,12 @@ import { Info } from "@phosphor-icons/react/Info";
 import { Play } from "@phosphor-icons/react/Play";
 import { Warning } from "@phosphor-icons/react/Warning";
 import { X } from "@phosphor-icons/react/X";
-import type { HarnessRunStreamEventV1 } from "@qoder-ai/harness/protocol";
 import {
-  applyHarnessRunEvent,
   initialRunState,
   settleRunState,
   type HarnessRunState,
 } from "./run/run-store.js";
-import { streamRun } from "./run/stream-run.js";
+import { streamAcpSession } from "./run/use-acp-session.js";
 import { AcpSessionStream } from "./run/AcpSessionStream.js";
 import { AcpConnectionPanel } from "./run/AcpConnectionPanel.js";
 import { AcpConversationHistory, loadAcpConversation } from "./run/AcpConversationHistory.js";
@@ -135,15 +133,15 @@ export function CompareLiveView(props: {
     preparingAgents.current.set(agentId, key);
     preparedControllers.current.set(key, controller);
     updatePrepared((current) => [...current, { key, agentId, runId, state: { ...initialRunState(), runId, status: "running" } }]);
-    void streamRun(
-      `api/acp/runs/stream?conversation=1&prepare=1&agent=${encodeURIComponent(agentId)}`,
-      PREPARE_PROMPT,
+    void streamAcpSession({
+      endpoint: `api/acp/runs/stream?conversation=1&prepare=1&agent=${encodeURIComponent(agentId)}`,
+      prompt: PREPARE_PROMPT,
       threadId,
       runId,
-      props.project,
-      (events: HarnessRunStreamEventV1[]) => patchLane(key, (run) => ({ ...run, state: events.reduce(applyHarnessRunEvent, run.state) })),
-      controller.signal,
-    ).catch((error) => {
+      ...(props.project === undefined ? {} : { project: props.project }),
+      signal: controller.signal,
+      fold: (reduce) => patchLane(key, (run) => ({ ...run, state: reduce(run.state) })),
+    }).catch((error) => {
       if (controller.signal.aborted) return;
       patchLane(key, (run) => ({
         ...run,

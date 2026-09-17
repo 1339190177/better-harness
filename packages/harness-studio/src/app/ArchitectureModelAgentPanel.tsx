@@ -6,8 +6,7 @@ import { AcpSessionSettings } from "./run/AcpSessionSettings.js";
 import { AcpSessionStream } from "./run/AcpSessionStream.js";
 import { createAcpSessionActions } from "./run/acp-session-actions.js";
 import { postAcpRunAction } from "./run/acp-run-actions.js";
-import { applyHarnessRunEvent, initialRunState, settleRunState, type HarnessRunState } from "./run/run-store.js";
-import { streamRun } from "./run/stream-run.js";
+import { useAcpSession } from "./run/use-acp-session.js";
 
 export interface ArchitectureAcpAgent { id: string; label: string; available: boolean; unavailableReason?: string }
 
@@ -29,10 +28,9 @@ export function ArchitectureModelAgentPanel({ onClose }: { onClose: () => void }
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string>();
   const input = useRef<HTMLTextAreaElement>(null);
-  const [state, setState] = useState<HarnessRunState>(initialRunState);
-  const stateRef = useRef(state);
-  const request = useRef<AbortController | undefined>(undefined);
   const close = useRef<HTMLButtonElement>(null);
+  // The same prepared-session mechanism the Compare lanes use, for one Agent.
+  const { state, active, connect, stop } = useAcpSession("arch");
 
   useEffect(() => {
     let cancelled = false;
@@ -47,38 +45,14 @@ export function ArchitectureModelAgentPanel({ onClose }: { onClose: () => void }
       } catch { /* the composer shows the unavailable state below */ }
     })();
     input.current?.focus();
-    return () => { cancelled = true; request.current?.abort(); };
+    return () => { cancelled = true; };
   }, []);
 
   const actions = useMemo(() => state.runId ? createAcpSessionActions(state.runId) : undefined, [state.runId]);
-  const active = state.status === "running";
 
-  async function connect(): Promise<void> {
+  function connectAgent(): void {
     if (active || !agentId) return;
-    request.current?.abort();
-    const controller = new AbortController(); request.current = controller;
-    const runId = `arch_${crypto.randomUUID()}`, threadId = `arch_${crypto.randomUUID()}`;
-    const fresh: HarnessRunState = { ...initialRunState(), status: "running", runId, threadId };
-    stateRef.current = fresh; setState(fresh);
-    try {
-      await streamRun("/api/git/architecture/acp/stream", JSON.stringify({ agentId }), threadId, runId, undefined, (events) => {
-        if (controller.signal.aborted) return;
-        stateRef.current = events.reduce(applyHarnessRunEvent, stateRef.current); setState(stateRef.current);
-      }, controller.signal);
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        // The reason a session could not start is the one thing the reader has to
-        // act on, so it is shown rather than replaced by a generic failure.
-        stateRef.current = settleRunState({ ...stateRef.current, status: "error", error: error instanceof Error ? error.message : "The architecture agent session failed." }, "interrupted");
-        setState(stateRef.current);
-      }
-    }
-  }
-
-  async function stop(): Promise<void> {
-    if (state.runId) await postAcpRunAction(state.runId, "cancel").catch(() => undefined);
-    request.current?.abort();
-    stateRef.current = settleRunState({ ...stateRef.current, status: "finished" }, "interrupted"); setState(stateRef.current);
+    void connect({ endpoint: "/api/git/architecture/acp/stream", prompt: JSON.stringify({ agentId }) });
   }
 
   async function sendInitial(): Promise<void> {
@@ -117,7 +91,7 @@ export function ArchitectureModelAgentPanel({ onClose }: { onClose: () => void }
                     </select>}
                 </PromptInputTools>
                 {!active
-                  ? <button className="primary" type="button" disabled={!agentId} onClick={() => void connect()}>Connect agent</button>
+                  ? <button className="primary" type="button" disabled={!agentId} onClick={connectAgent}>Connect agent</button>
                   : <PromptInputSubmit label="Send" pending={sending} disabled={!state.acp.prepared || !active || sending || !draft.trim()} />}
               </PromptInputFooter>
               {active && <div className="acp-composer-caption"><span className="acp-composer-agent-label">{agentLabel}</span><button type="button" onClick={() => void stop()}>Close session</button></div>}
