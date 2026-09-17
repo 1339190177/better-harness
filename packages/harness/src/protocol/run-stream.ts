@@ -71,6 +71,8 @@ function parseHarnessRunEvent(value: unknown): HarnessRunEvent {
     }
     case "acp-session-ready":
       return { type: event.type, sessionId: stringValue(event.sessionId, "sessionId"), prepared: event.prepared === true };
+    case "acp-agent-diagnostic":
+      return { type: event.type, message: stringValue(event.message, "message") };
     case "message-started":
       return { type: event.type, messageId: stringValue(event.messageId, "messageId"), ...((event.role === "thought" || event.role === "user") ? { role: event.role } : {}) };
     case "message-finished":

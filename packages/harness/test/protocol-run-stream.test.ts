@@ -34,4 +34,24 @@ describe("Harness run stream protocol", () => {
       event: { type: "invented" },
     })).toThrow(/Unsupported/);
   });
+
+  it("parses ACP agent startup diagnostics", () => {
+    // The Rust ACP host forwards the Agent's stderr startup lines as
+    // acp-agent-diagnostic events; the wire parser must accept them or every
+    // ACP run that logs while starting fails at the transport boundary.
+    expect(parseHarnessRunStreamEventV1({
+      kind: HARNESS_RUN_STREAM_EVENT_KIND,
+      threadId: "thread-1",
+      runId: "run-1",
+      sequence: 1,
+      event: { type: "acp-agent-diagnostic", message: "[box-exec] provisioning" },
+    })).toMatchObject({ event: { type: "acp-agent-diagnostic", message: "[box-exec] provisioning" } });
+    expect(() => parseHarnessRunStreamEventV1({
+      kind: HARNESS_RUN_STREAM_EVENT_KIND,
+      threadId: "thread-1",
+      runId: "run-1",
+      sequence: 1,
+      event: { type: "acp-agent-diagnostic", message: 7 },
+    })).toThrow(/message/);
+  });
 });
