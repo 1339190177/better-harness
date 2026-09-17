@@ -8,12 +8,12 @@ import { Gauge } from "@phosphor-icons/react/Gauge";
 import { HardDrives } from "@phosphor-icons/react/HardDrives";
 import { Binoculars } from "@phosphor-icons/react/Binoculars";
 import { Brain } from "@phosphor-icons/react/Brain";
+import { Broadcast } from "@phosphor-icons/react/Broadcast";
 import { BugBeetle } from "@phosphor-icons/react/BugBeetle";
 import { CaretUpDown } from "@phosphor-icons/react/CaretUpDown";
 import { Flask } from "@phosphor-icons/react/Flask";
 import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
 import { GitBranch } from "@phosphor-icons/react/GitBranch";
-import { Graph } from "@phosphor-icons/react/Graph";
 import { Lightbulb } from "@phosphor-icons/react/Lightbulb";
 import { Lightning } from "@phosphor-icons/react/Lightning";
 import { Package } from "@phosphor-icons/react/Package";
@@ -37,7 +37,7 @@ const VIEW_ICONS: Record<StudioArea, Icon> = {
   sessions: Binoculars,
   "session-performance": Gauge,
   commits: GitBranch,
-  impact: Graph,
+  impact: Broadcast,
   artifacts: Package,
   debugger: BugBeetle,
   compare: Flask,
