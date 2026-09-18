@@ -151,6 +151,7 @@ async function main() {
     apps,
     installedAppsDir: join(config.homeDir, 'apps'),
     appRoutes,
+    isAppEnabled,
   })
   const hostApi = createHostApi({ apps, state, backends, config, logger, isAppEnabled })
   const proxy = createAppProxy({

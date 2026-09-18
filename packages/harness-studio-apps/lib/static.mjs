@@ -10,7 +10,9 @@
  *   GET /app-assets/*            -> dist/app-assets/* (store art, app icons)
  *   GET /vendor/*                -> dist/vendor/* (vendored frontend deps)
  *   GET /apps/<name>/ui/<entry>  -> installed apps/<name>/ui/<entry>, else the
- *                                   builtin's own ui/ dir (federated app UI ESM)
+ *                                   builtin's own ui/ dir (app UI ESM). Gated
+ *                                   on enablement: a disabled app's bundle is
+ *                                   404, like one that is not installed.
  *   GET /<anything-else>         -> dist/<path> when it exists, otherwise
  *                                   dist/index.html (SPA fallback, injected)
  *
@@ -118,7 +120,16 @@ function contained(root, candidate) {
   return rel === root || rel.startsWith(root + sep)
 }
 
-export function createStaticHandler({ distDir, apps, installedAppsDir, appRoutes = [] }) {
+export function createStaticHandler({
+  distDir,
+  apps,
+  installedAppsDir,
+  appRoutes = [],
+  // The same predicate the proxy and the host API read, so what `/api/apps`
+  // reports, what the proxy forwards and what this tier serves cannot diverge.
+  // Defaulting to "everything is on" keeps the handler usable standalone.
+  isAppEnabled = () => true,
+}) {
   const root = distDir ? resolve(distDir) : null
 
   /** First existing candidate under the dist root, or null. */
@@ -200,6 +211,15 @@ export function createStaticHandler({ distDir, apps, installedAppsDir, appRoutes
       const [, name, entry] = uiMatch
       if (entry.includes('..') || entry.startsWith('/')) {
         sendJson(res, 400, { error: 'invalid path' })
+        return true
+      }
+      // Enablement gates the BUNDLE, not only the API. Serving a disabled
+      // app's entry let any page import and mount it, so the switch the app
+      // list offers only held for half the app. The refusal is the same 404 an
+      // app that is not installed gets: whether a disabled app exists is not
+      // this tier's to disclose.
+      if (!isAppEnabled(name)) {
+        sendJson(res, 404, { error: 'not found' })
         return true
       }
       const ext = extname(entry).toLowerCase()
