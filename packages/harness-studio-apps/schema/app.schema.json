@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qoder.ai/schemas/harness-studio-app/v1.json",
+  "title": "Harness Studio app manifest",
+  "description": "The `app.json` contract for a Harness Studio app. Every field here is read by the host: `lib/manifest.mjs` validates it at load time and the normalized result is what `lib/backends.mjs`, `lib/proxy.mjs` and `lib/static.mjs` act on. A capability the host does not enforce does not belong in this file.\n\nThis document is the EDITOR-facing contract and is deliberately stricter than the runtime validator: `additionalProperties` is false so a typo gets a squiggle while you write, whereas the runtime reports an unknown key as a warning and still loads the app, so a manifest written against a newer schema does not brick an older host.",
+  "type": "object",
+  "required": ["schemaVersion", "name", "version", "displayName"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this file, so editors resolve completions without configuration."
+    },
+    "schemaVersion": {
+      "const": 1,
+      "description": "The manifest contract version. The host refuses a version it does not implement rather than guessing at the shape."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 64,
+      "description": "Unique kebab-case identifier. It appears in URLs (`/apps/<name>/api/*`), in the data home path, and as a React key, so the charset is bounded. Names the host's own routes own are reserved."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "description": "Semver. Compared on update, so a non-semver string is refused rather than sorted as text."
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Human-readable name, shown in the app list and the page header."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "One paragraph on what the app does and what it can reach."
+    },
+    "author": { "type": "string", "maxLength": 128 },
+    "license": { "type": "string", "maxLength": 64 },
+    "tags": {
+      "type": "array",
+      "maxItems": 12,
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 32 }
+    },
+    "defaultEnabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the app is on the first time the host sees it. An explicit enable/disable always wins over this; it only decides the undecided state."
+    },
+
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Surfaces the app OWNS. Absent means a headless app: a backend and no page.",
+      "properties": {
+        "entry": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._\\-/]+\\.m?js$",
+          "description": "ESM entry relative to the app's `ui/` directory, served at `/apps/<name>/ui/<entry>` under `default-src 'none'; sandbox`. The file must exist at load time."
+        },
+        "export": {
+          "type": "string",
+          "default": "default",
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$|^default$",
+          "description": "The named export the host calls as `mount(container, sdk)`."
+        },
+        "pages": {
+          "type": "array",
+          "maxItems": 8,
+          "description": "Routes this app's entry renders. Without at least one page nothing navigates to the entry.",
+          "items": {
+            "type": "object",
+            "required": ["route", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "route": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9][A-Za-z0-9._~\\-]*(?:/[A-Za-z0-9][A-Za-z0-9._~\\-]*)*$",
+                "description": "Absolute path the page owns. `/` is refused: an app routed at the root would swallow the whole shell."
+              },
+              "label": { "type": "string", "minLength": 1, "maxLength": 32 },
+              "icon": {
+                "type": "string",
+                "maxLength": 48,
+                "description": "Icon name resolved by the shell's icon set. An unknown name renders a fallback rather than failing the page."
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "backend": {
+      "type": "object",
+      "required": ["entry"],
+      "additionalProperties": false,
+      "description": "The app's own HTTP process. Absent means no process: `/apps/<name>/api/*` answers 502 and nothing is spawned. Declared here rather than discovered by file presence, so the manifest cannot disagree with what actually runs.",
+      "properties": {
+        "kind": {
+          "enum": ["node"],
+          "default": "node",
+          "description": "Runtime the host spawns the entry with."
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._\\-/]+\\.m?js$",
+          "description": "Script relative to the app root. The file must exist at load time — a manifest naming a backend that is not there is refused, not silently ignored."
+        },
+        "healthCheck": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9._~\\-/]*$",
+          "default": "/health",
+          "description": "Unsigned liveness route the host polls before publishing the proxy. It is the ONLY route a backend may answer without the proxy HMAC."
+        },
+        "maxBodyBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456,
+          "default": 1048576,
+          "description": "Ceiling on a proxied request body. The proxy HMAC covers the body, so the bytes are buffered before they are forwarded — without a ceiling one upload is one out-of-memory. A larger body is refused with 413."
+        },
+        "startupTimeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 300000,
+          "default": 10000,
+          "description": "How long the host waits for the health route after spawn before reporting the backend unhealthy."
+        },
+        "restart": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "What the host does when the process exits on its own.",
+          "properties": {
+            "policy": {
+              "enum": ["never", "on-failure", "always"],
+              "default": "on-failure"
+            },
+            "maxRetries": { "type": "integer", "minimum": 0, "maximum": 20, "default": 3 },
+            "backoffMs": { "type": "integer", "minimum": 100, "maximum": 60000, "default": 1000 }
+          }
+        }
+      }
+    },
+
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What the host lets the app reach. Every field here is ENFORCED by the host — which is also why the list is short. A backend is an ordinary child process, so anything the host cannot actually withhold (outbound network, filesystem reach) is deliberately absent rather than declared and unpoliced; it comes back when there is a sandbox to enforce it. Every app gets `<home>/apps/<name>/data` and no declaration is needed for it.",
+      "properties": {
+        "http": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inbound": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the host proxies `/apps/<name>/api/*` into the backend at all. `false` makes the proxy answer 403 without touching the process."
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 32,
+          "description": "The app's event vocabulary: every name that may cross the host/app boundary, in either direction (the host pushing state down, the entry reporting a selection up). `createEventBus({allowed})` refuses `on()` for anything outside it, so a typo is a loud refusal rather than a listener that waits forever.\n\nEnforced only when the embedding shell passes the list to `createAppSdk({allowedEvents})`. The validator warns when an app declares events, so an author is never left assuming a guarantee the shell has not opted into.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          }
+        },
+        "forwardHeaders": {
+          "type": "array",
+          "maxItems": 16,
+          "default": [],
+          "description": "Request headers the proxy copies from the browser into the backend. Default-deny: an app backend is third-party code behind an HMAC hop and gets its own identity, so the host's own credentials never cross it. `cookie`, `authorization`, `proxy-authorization` and the proxy signature header itself are refused outright.",
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 64 }
+        }
+      }
+    },
+
+    "contributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Rows the app adds to surfaces the HOST renders. Separate from `ui`, which is where an app declares surfaces of its own — the split is what lets an app with no page still reach the launcher.\n\nStatus: validated and published on `GET /api/apps`, not yet rendered by the Studio shell. The validator says so in a warning rather than letting a declaration vanish silently.",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "prompt"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 48 },
+              "title": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "subtitle": { "type": "string", "maxLength": 96 },
+              "icon": { "type": "string", "maxLength": 48 },
+              "keywords": {
+                "type": "array",
+                "maxItems": 8,
+                "items": { "type": "string", "maxLength": 32 }
+              },
+              "prompt": { "type": "string", "minLength": 1, "maxLength": 4000 },
+              "autoSend": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "sessionControls": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Compact controls rendered inside the composer, on the path of every turn — capped so one app cannot crowd the bar out. An app needing more configuration has a page for it.",
+          "items": {
+            "type": "object",
+            "required": ["id", "entry"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 48 },
+              "entry": {
+                "type": "string",
+                "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._\\-/]+\\.m?js$",
+                "description": "ESM bundle relative to `ui/`, lazily imported like a page."
+              },
+              "label": { "type": "string", "maxLength": 48 },
+              "icon": { "type": "string", "maxLength": 48 },
+              "statusPath": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9/_-]{0,63}$",
+                "description": "Route WITHIN the app's own backend reporting `{state, tooltip}` for the chip before it is opened. Deliberately not a URL — no scheme, no host, no query — so a control cannot point the poll at another origin. The host prefixes the app's own API base itself."
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "os": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "enum": ["macos", "linux", "windows"] },
+          "description": "Platforms the app runs on. The host warns at load time when the current platform is not listed; it does not hide the app, because a manifest is not a better judge of the machine than the machine."
+        }
+      }
+    }
+  }
+}

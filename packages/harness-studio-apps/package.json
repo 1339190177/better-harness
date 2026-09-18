@@ -1,0 +1,24 @@
+{
+  "name": "@qoder-ai/harness-studio-apps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "description": "Node host for apps: stdlib-only app backends behind an HMAC-signed proxy, a declarative host surface (records, manifests, enable/disable), and a minimal app-UI contract. Extracted from the KiroCrew Node compat host to carry Harness Studio features as apps.",
+  "exports": {
+    "./client": {
+      "types": "./client.d.ts",
+      "default": "./client.mjs"
+    },
+    "./server": "./server.mjs",
+    "./manifest": "./lib/manifest.mjs",
+    "./app-server": "./lib/appServer.mjs",
+    "./schema/app.schema.json": "./schema/app.schema.json"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/run-all.mjs"
+  }
+}

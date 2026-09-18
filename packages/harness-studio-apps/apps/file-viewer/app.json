@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "file-viewer",
+  "version": "0.1.0",
+  "displayName": "File Viewer",
+  "description": "A tree view over the artifacts observed for the open Project: folders collapse, files select, and the host decides what the selection previews. The component ships no backend — the host passes the artifact list in as props and receives selections back as events.",
+  "defaultEnabled": false,
+  "ui": {
+    "entry": "entry.mjs"
+  }
+}

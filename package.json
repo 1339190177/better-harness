@@ -30,7 +30,8 @@
     "packages/harness",
     "packages/harness-studio",
     "packages/harness-ui",
-    "packages/better-harness-desktop"
+    "packages/better-harness-desktop",
+    "packages/harness-studio-apps"
   ],
   "pi": {
     "skills": [
@@ -98,6 +99,8 @@
     "harness-studio:dev": "npm run dev -w @qoder-ai/harness-studio --",
     "harness-studio:test": "npm test -w @qoder-ai/harness-studio",
     "harness-studio:test:browser": "npm run test:browser -w @qoder-ai/harness-studio",
+    "harness-studio-apps:start": "npm start -w @qoder-ai/harness-studio-apps --",
+    "harness-studio-apps:test": "npm test -w @qoder-ai/harness-studio-apps",
     "harness-ui:build": "npm run build -w @qoder-ai/harness-ui",
     "harness-ui:dev": "npm run dev -w @qoder-ai/harness-ui --",
     "harness-ui:test": "npm test -w @qoder-ai/harness-ui",

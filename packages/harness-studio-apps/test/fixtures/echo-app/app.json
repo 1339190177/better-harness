@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "echo-app",
+  "version": "0.0.1",
+  "displayName": "Echo",
+  "description": "Test fixture: reports back what the proxy actually forwarded, so the host's header and body policy is observed rather than asserted from the source.",
+  "defaultEnabled": true,
+  "ui": { "entry": "entry.mjs" },
+  "backend": {
+    "entry": "server.mjs",
+    "maxBodyBytes": 1024,
+    "startupTimeoutMs": 5000,
+    "restart": { "policy": "on-failure", "maxRetries": 2, "backoffMs": 200 }
+  },
+  "capabilities": {
+    "http": { "inbound": true },
+    "events": ["echo-app:ping"],
+    "forwardHeaders": ["x-allowed"]
+  }
+}
