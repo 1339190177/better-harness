@@ -56,6 +56,21 @@ function windowChrome() {
   return { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay() };
 }
 
+/**
+ * The application icon for an unpackaged run.
+ *
+ * A packaged build carries its own: electron-builder seals `build/icon.icns`
+ * into the .app and `build/icon.ico` into the .exe, and `build/` is not shipped
+ * inside the app, so there is nothing to point at there. Running from source has
+ * neither, and would otherwise show Electron's default mark in the Dock and
+ * taskbar, which reads as a different application than the packaged Studio.
+ */
+function developmentIcon() {
+  if (app.isPackaged) return undefined;
+  const icon = fileURLToPath(new URL('../build/icon.png', import.meta.url));
+  return existsSync(icon) ? icon : undefined;
+}
+
 /** Mirrors the `titlebar` surface token so the overlay is not a foreign block. */
 function titleBarOverlay() {
   const dark = nativeTheme.shouldUseDarkColors;
@@ -67,9 +82,12 @@ function titleBarOverlay() {
 }
 
 async function createWindow() {
+  const icon = developmentIcon();
   window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 390, minHeight: 600,
     title: 'Harness Studio', show: false,
+    // macOS ignores this and takes the Dock icon from the bundle or app.dock.
+    ...(icon ? { icon } : {}),
     ...windowChrome(),
     webPreferences: {
       partition: 'better-harness-desktop', nodeIntegration: false, contextIsolation: true,
@@ -137,6 +155,8 @@ else {
     void service.stop().finally(() => app.quit());
   });
   void app.whenReady().then(async () => {
+    const icon = developmentIcon();
+    if (icon && process.platform === 'darwin') app.dock?.setIcon(icon);
     const desktopSession = session.fromPartition('better-harness-desktop');
     desktopSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     desktopSession.setPermissionCheckHandler(() => false);

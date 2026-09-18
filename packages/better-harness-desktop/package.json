@@ -19,6 +19,7 @@
     "pack": "npm run build && npm run stage && electron-builder --dir",
     "dist": "npm run build && npm run stage && electron-builder",
     "build:rust": "node scripts/rust.mjs",
+    "icons": "node scripts/icons.mjs",
     "test:rust": "node scripts/rust.mjs --test",
     "test:native": "npm exec -w @qoder-ai/harness-studio -- vitest run --config vitest.native.config.ts",
     "build:go": "node scripts/go.mjs",
@@ -59,12 +60,14 @@
       "target": [
         "zip"
       ],
+      "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools"
     },
     "win": {
       "target": [
         "nsis"
       ],
+      "icon": "build/icon.ico",
       "extraResources": [
         {
           "from": "dist/native",
@@ -84,6 +87,7 @@
       "target": [
         "AppImage"
       ],
+      "icon": "build/icon.png",
       "category": "Development",
       "executableName": "harness-studio",
       "extraResources": [
