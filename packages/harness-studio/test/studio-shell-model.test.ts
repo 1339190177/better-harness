@@ -79,6 +79,7 @@ describe("Studio control-plane navigation", () => {
       "compare",
       "debugger",
       "artifacts",
+      "components",
     ]);
     // The landing View must be one the shell can actually resolve.
     expect(destinations.map((destination) => destination.id)).toContain(STUDIO_DEFAULT_AREA);
@@ -89,6 +90,10 @@ describe("Studio control-plane navigation", () => {
     expect(destinations.find((destination) => destination.id === "artifacts")).toMatchObject({
       availability: "ready",
       status: "No observed outputs",
+    });
+    expect(destinations.find((destination) => destination.id === "components")).toMatchObject({
+      availability: "foundation",
+      status: "Component host not configured",
     });
     expect(destinations.find((destination) => destination.id === "commits")).toMatchObject({
       availability: "foundation",
@@ -106,8 +111,17 @@ describe("Studio control-plane navigation", () => {
       availability: "foundation",
       status: "Project required",
     });
-    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 6 });
+    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 7 });
     expect(studioProjectGateRequired({ ...EMPTY, workspaceDiscoveryEnabled: true }, false, "memory-sources")).toBe(false);
+    expect(studioProjectGateRequired({ ...EMPTY, workspaceDiscoveryEnabled: true }, false, "components")).toBe(false);
+  });
+
+  it("marks the Components workbench ready once an apps host is configured", () => {
+    const destinations = studioDestinations({ ...EMPTY, appsHostEnabled: true }, undefined, commonT);
+    expect(destinations.find((destination) => destination.id === "components")).toMatchObject({
+      availability: "ready",
+      status: "Component host connected",
+    });
   });
 
   it("routes configured artifacts to Debugger, Compare, and Inspector surfaces", () => {
@@ -115,6 +129,7 @@ describe("Studio control-plane navigation", () => {
       runEnabled: true,
       acpEnabled: false,
       artifactsEnabled: true,
+      appsHostEnabled: true,
       evidenceEnabled: true,
       experimentEnabled: true,
       experimentRunnable: true,
@@ -147,7 +162,7 @@ describe("Studio control-plane navigation", () => {
     });
     // Impact stays partial here: the fixture has a repository but no staged
     // architecture host, which is exactly what that availability means.
-    expect(capabilitySummary(config, commonT)).toEqual({ ready: 7, partial: 1, foundation: 1 });
+    expect(capabilitySummary(config, commonT)).toEqual({ ready: 8, partial: 1, foundation: 1 });
   });
 
   it("treats an artifact directory as independent of every other input", () => {

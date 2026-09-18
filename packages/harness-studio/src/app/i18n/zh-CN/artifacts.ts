@@ -64,6 +64,8 @@ export const artifacts: typeof enArtifacts = {
   fileTree: {
     aria: "产物文件树",
     all: "全部产物",
+    expandPrefix: "展开",
+    collapsePrefix: "折叠",
   },
   folder: {
     expand: "展开 {{path}}",

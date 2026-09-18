@@ -36,6 +36,8 @@ Options:
   --runs <dir>        Durable directory for saved Debugger runs
                       (default: .harness-studio-runs under --cwd)
   --artifacts <dir>   Optional artifact directory to preload read-only
+  --apps-host <url>   Base URL of a running harness-studio-apps host; enables the Apps
+                      view (e.g. http://127.0.0.1:8799)
   --canvas-viewers <dir>
                       Provisioned format viewers (default: ~/.qoder/canvas/canvases)
   --canvas-sdk-root <dir>
@@ -73,7 +75,7 @@ const KNOWN_OPTIONS = new Set([
   "--runs", "--artifacts", "--canvas-viewers", "--canvas-sdk-root", "--canvas-sdk-media",
   "--provider-state", "--artifact-provider-module", "--walnut-cache", "--source-catalog",
   "--harness-id", "--runtime", "--acp-agent", "--acp-arg", "--port", "--host", "--cwd",
-  "--source-root", "--unsafe-allow-remote",
+  "--source-root", "--unsafe-allow-remote", "--apps-host",
 ]);
 
 export interface HarnessStudioCliIo {
@@ -132,6 +134,7 @@ interface ParsedArgs {
   artifactProviderModules: string[];
   walnutCache?: string;
   sourceCatalog?: string;
+  appsHost?: string;
   port: number;
   host: string;
   allowRemote: boolean;
@@ -251,6 +254,21 @@ export function parseHarnessStudioArgs(argv: string[]): ParsedArgs {
       case "--source-root":
         parsed.sourceRoot = takeValue();
         break;
+      case "--apps-host": {
+        const value = takeValue("--apps-host requires a base URL, e.g. http://127.0.0.1:8799.");
+        if (value === undefined) break;
+        try {
+          const url = new URL(value);
+          if (url.protocol !== "http:" && url.protocol !== "https:") {
+            setError(`--apps-host must be an http(s) URL: ${value}`);
+          } else {
+            parsed.appsHost = value;
+          }
+        } catch {
+          setError(`--apps-host must be a valid URL: ${value}`);
+        }
+        break;
+      }
       case "--port": {
         const rawValue = takeValue();
         if (rawValue === undefined) break;
@@ -381,6 +399,7 @@ export async function runHarnessStudioCli(argv: string[], io: HarnessStudioCliIo
       ...(acpAgents.length === 0 ? {} : { acpAgents }),
       ...(boxExecExecutable === undefined ? {} : { boxExecExecutable }),
       ...(parsed.runs !== undefined ? { runDirectory: resolve(parsed.runs) } : {}),
+      ...(parsed.appsHost !== undefined ? { appsHostUrl: parsed.appsHost } : {}),
       ...(parsed.artifacts !== undefined ? { artifactDirectory: resolve(parsed.artifacts) } : {}),
       ...(parsed.canvasViewers !== undefined ? { canvasViewerRoot: resolve(parsed.canvasViewers) } : {}),
       ...(parsed.canvasSdkRoot !== undefined ? { canvasSdkRoot: resolve(parsed.canvasSdkRoot) } : {}),

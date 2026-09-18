@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Icon } from "@phosphor-icons/react";
+import { AppWindow } from "@phosphor-icons/react/AppWindow";
 import { BookOpen } from "@phosphor-icons/react/BookOpen";
 import { CaretDown } from "@phosphor-icons/react/CaretDown";
 import { CaretRight } from "@phosphor-icons/react/CaretRight";
@@ -39,6 +40,7 @@ const VIEW_ICONS: Record<StudioArea, Icon> = {
   commits: GitBranch,
   impact: Broadcast,
   artifacts: Package,
+  components: AppWindow,
   debugger: BugBeetle,
   compare: Flask,
 };

@@ -4,10 +4,12 @@ import { app, BrowserWindow, dialog, Menu, nativeTheme, session, utilityProcess 
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { connectStudioService, desktopEsbuildOptions } from './service-host.mjs';
+import { startAppsHost } from './apps-host.mjs';
 import { HEADER, isSameOrigin, isExternalUrl } from './protocol.mjs';
 
 let window;
 let service;
+let appsHost;
 let origin;
 let quitting = false;
 let failureReported = false;
@@ -149,10 +151,10 @@ else {
   }
   app.on('activate', () => { if (!window && origin && !quitting) void createWindow().catch(fail); });
   app.on('before-quit', (event) => {
-    if (quitting || !service) return;
+    if (quitting || (!service && !appsHost)) return;
     event.preventDefault();
     quitting = true;
-    void service.stop().finally(() => app.quit());
+    void Promise.allSettled([service?.stop(), appsHost?.stop()]).finally(() => app.quit());
   });
   void app.whenReady().then(async () => {
     const icon = developmentIcon();
@@ -160,13 +162,20 @@ else {
     const desktopSession = session.fromPartition('better-harness-desktop');
     desktopSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     desktopSession.setPermissionCheckHandler(() => false);
+    // The component host runs as its own process beside Studio: it owns app
+    // backends, their lifecycle and their state, and one left running from an
+    // earlier session is reused instead of duplicated. A missing host is an
+    // ordinary outcome — Studio then explains the surface instead of hosting it.
+    const appsHostStart = startAppsHost({ dataDirectory: app.getPath('userData') }).catch(() => undefined);
     const child = utilityProcess.fork(fileURLToPath(new URL('./studio-service.mjs', import.meta.url)), [], {
       serviceName: 'Harness Studio Service', stdio: 'pipe',
     });
     child.stdout?.on('data', (data) => process.stdout.write(data));
     child.stderr?.on('data', (data) => process.stderr.write(data));
+    appsHost = await appsHostStart;
     service = connectStudioService(child, {
       token, dataDirectory: app.getPath('userData'), onFailure: fail,
+      ...(appsHost === undefined ? {} : { appsHostUrl: appsHost.url }),
       ...desktopEsbuildOptions({ platform: process.platform, contentsDirectory: app.isPackaged
         ? join(process.resourcesPath, '..')
         : fileURLToPath(new URL('../dist/native/Harness Esbuild.app/Contents', import.meta.url)) }),

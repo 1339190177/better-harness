@@ -28,6 +28,8 @@ import { ArtifactView } from "./artifacts/ArtifactView.js";
 import { ArtifactInteractionPane } from "./artifacts/ArtifactInteractionPane.js";
 import type { ArtifactHostedIntentFailure } from "./artifacts/ArtifactSurface.js";
 import { PaneSash } from "./shell/PaneSash.js";
+import { HostedComponent } from "./components/HostedComponent.js";
+import { useStudioTheme } from "./studio-theme.js";
 import { studioLocale } from "./i18n/index.js";
 import { useRovingFocus } from "./roving-tablist.js";
 import type { StudioConfig } from "./studio-shell-model.js";
@@ -43,6 +45,24 @@ type ArtifactScope =
   | { kind: "folder"; value: string }
   | { kind: "file"; value: string };
 type ArtifactNarrowPane = "scope" | "artifacts" | "preview";
+
+/** Events the hosted file viewer emits that this workspace listens for. */
+const FILE_VIEWER_EVENTS: readonly string[] = ["select"];
+
+/**
+ * The hosted file viewer's selection comes back as untrusted data — it crossed
+ * a process and a contract — so it is parsed rather than trusted.
+ */
+function parseArtifactScope(payload: unknown): ArtifactScope | undefined {
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const { kind, value } = payload as { kind?: unknown; value?: unknown };
+  if (kind === "all") return { kind: "all" };
+  if ((kind === "folder" || kind === "file") && typeof value === "string") return { kind, value };
+  return undefined;
+}
+
+/** Stable empty list: the hosted props object must not churn per render. */
+const NO_ARTIFACTS: ArtifactDescriptor[] = [];
 export function ArtifactsWorkspace(props: { config: StudioConfig; dateRange: StudioDateRange }): React.JSX.Element {
   const { t } = useTranslation("artifacts");
   const [catalog, setCatalog] = useState<StudioArtifactCatalogResponse>();
@@ -59,6 +79,8 @@ export function ArtifactsWorkspace(props: { config: StudioConfig; dateRange: Stu
   const [surfaceSelection, setSurfaceSelection] = useState<ArtifactSurfaceSelectionV1>();
   const [surfaceIntentOutcome, setSurfaceIntentOutcome] = useState<ArtifactHostedIntentOutcomeV1>();
   const [surfaceIntentFailure, setSurfaceIntentFailure] = useState<ArtifactHostedIntentFailure>();
+  const [hostedFileViewer, setHostedFileViewer] = useState<{ entry: string }>();
+  const theme = useStudioTheme();
   const [adoptedIntentId, setAdoptedIntentId] = useState<string>();
   const workspaceRef = useRef<HTMLElement>(null);
   const [frameWidth, setFrameWidth] = useState(0);
@@ -189,7 +211,7 @@ export function ArtifactsWorkspace(props: { config: StudioConfig; dateRange: Stu
   if (failure !== undefined) return <ArtifactEmpty title={t("empty.unreadableTitle")} detail={failure} onRetry={() => setCatalogRefresh((value) => value + 1)} />;
   if (props.config.artifactsEnabled && catalog === undefined) return <p className="artifact-status" role="status" aria-busy="true">{t("indexing")}</p>;
 
-  const artifacts = catalog?.artifacts ?? [];
+  const artifacts = catalog?.artifacts ?? NO_ARTIFACTS;
   const navigation = catalog?.navigation;
   const omitted = catalog?.omitted ?? [];
   const activeObservations = active === undefined ? [] : observationsForArtifact(navigation, active.id);
@@ -226,6 +248,39 @@ export function ArtifactsWorkspace(props: { config: StudioConfig; dateRange: Stu
   const collaborationArtifact = activeIntentOutcome?.effect.kind === "steering" && activeIntentDestination !== undefined
     ? adoptedDestinationArtifact
     : adoptedDestinationArtifact ?? (active?.interaction === undefined ? undefined : active);
+  // The Files surface is hosted by the apps host whenever one is configured:
+  // the file-viewer component renders the tree, and the built-in navigator
+  // stays as the fallback for every other state (no host, no entry, a load
+  // that fails, or a host that never answers).
+  useEffect(() => {
+    if (!props.config.appsHostEnabled) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("api/apps/file-viewer", { headers: { accept: "application/json" } });
+        if (!response.ok) return;
+        const record = await response.json() as { manifest?: { ui?: { entry?: unknown } } };
+        const entry = record.manifest?.ui?.entry;
+        if (!cancelled && typeof entry === "string" && entry !== "") setHostedFileViewer({ entry });
+      } catch {
+        // The built-in navigator stays the fallback.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [props.config.appsHostEnabled]);
+
+  // Memoized because HostedComponent treats a new reference as new props.
+  const hostedFileViewerProps = useMemo(() => ({
+    artifacts: artifacts.map((artifact) => ({ id: artifact.id, label: artifact.label })),
+    scope,
+    labels: {
+      all: t("fileTree.all"),
+      treeAria: t("fileTree.aria"),
+      expand: t("fileTree.expandPrefix"),
+      collapse: t("fileTree.collapsePrefix"),
+    },
+  }), [artifacts, scope, t]);
+
   const selectScope = (next: ArtifactScope): void => {
     setScope(next);
     const ids = artifactIdsForScope(next, navigation, artifacts);
@@ -275,7 +330,21 @@ export function ArtifactsWorkspace(props: { config: StudioConfig; dateRange: Stu
 
     <aside className="artifact-scope-pane" id="artifact-scope-pane" role="tabpanel" aria-labelledby="artifact-tab-scope">
       <header aria-label={t("fileTree.aria")}><span>{artifacts.length}</span></header>
-      <ArtifactFileNavigator artifacts={artifacts} scope={scope} onSelect={selectScope} />
+      {hostedFileViewer === undefined
+        ? <ArtifactFileNavigator artifacts={artifacts} scope={scope} onSelect={selectScope} />
+        : <HostedComponent
+          name="file-viewer"
+          entry={hostedFileViewer.entry}
+          props={hostedFileViewerProps}
+          theme={theme}
+          forwardedEvents={FILE_VIEWER_EVENTS}
+          onEvent={(name, payload) => {
+            if (name !== "select") return;
+            const next = parseArtifactScope(payload);
+            if (next !== undefined) selectScope(next);
+          }}
+          className="artifact-file-tree-host"
+        />}
       {windowHidesArtifacts && <p className="artifact-pane-note">{t("common:dateRange.emptyWindow")}</p>}
       {!windowHidesArtifacts && props.dateRange.preset !== "all" && windowTotal !== undefined
         && <p className="artifact-pane-note" role="status">{t("common:dateRange.filtered", { shown: artifacts.length, total: windowTotal })}</p>}

@@ -101,6 +101,11 @@ export interface HarnessStudioServerOptions {
   accessToken?: string;
   /** Directory holding the built React app (index.html + assets/). */
   appDir: string;
+  /**
+   * Base URL of a running `harness-studio-apps` host (its `server.mjs`), e.g.
+   * `http://127.0.0.1:8799`; enables the Apps view and its proxy surface.
+   */
+  appsHostUrl?: string;
   /** Self-contained Harness Inspector HTML report mounted read-only at /inspector. */
   inspectorReportPath?: string;
   /** harness-compare evidence directory containing verdict.json. */

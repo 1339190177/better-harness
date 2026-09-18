@@ -62,6 +62,8 @@ export const artifacts = {
   fileTree: {
     aria: "Artifact file tree",
     all: "All artifacts",
+    expandPrefix: "Expand",
+    collapsePrefix: "Collapse",
   },
   folder: {
     expand: "Expand {{path}}",

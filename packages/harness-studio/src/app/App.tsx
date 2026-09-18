@@ -10,6 +10,7 @@ import { Moon } from "@phosphor-icons/react/Moon";
 import { SidebarSimple } from "@phosphor-icons/react/SidebarSimple";
 import { Sun } from "@phosphor-icons/react/Sun";
 import { ArtifactsWorkspace } from "./ArtifactsWorkspace.js";
+import { ComponentsWorkspace } from "./components/ComponentsWorkspace.js";
 import { ArtifactView } from "./artifacts/ArtifactView.js";
 import { CompareView } from "./CompareView.js";
 import { CompareLiveView } from "./CompareLiveView.js";
@@ -77,6 +78,7 @@ const STUDIO_AREAS: readonly StudioArea[] = [
   "commits",
   "impact",
   "artifacts",
+  "components",
   "debugger",
   "compare",
 ];
@@ -93,6 +95,7 @@ const EMPTY_CONFIG: StudioConfig = {
   runEnabled: false,
   acpEnabled: false,
   artifactsEnabled: false,
+  appsHostEnabled: false,
   evidenceEnabled: false,
   experimentEnabled: false,
   experimentRunnable: false,
@@ -683,6 +686,7 @@ export function App(): React.JSX.Element {
         {area === "commits" && (config.gitEnabled ? <GitHistoryView key={`commits-${workspaceRevision}`} dateRange={dateRange} structuralDiffEnabled={config.structuralDiffEnabled === true} /> : <EmptyWorkspace eyebrow={t("git:empty.eyebrow")} title={config.workspaceConnected ? t("git:empty.titleConnected") : t("git:empty.titleDisconnected")} detail={config.workspaceConnected ? t("git:empty.detailConnected") : projectDiscoveryDetail} action={openProjectAction} />)}
         {area === "impact" && (config.gitEnabled ? <ImpactView key={`impact-${workspaceRevision}`} hostAvailable={config.architectureImpactEnabled === true} /> : <EmptyWorkspace eyebrow={t("git:empty.eyebrow")} title={config.workspaceConnected ? t("git:empty.titleConnected") : t("git:empty.titleDisconnected")} detail={config.workspaceConnected ? t("git:empty.detailConnected") : projectDiscoveryDetail} action={openProjectAction} />)}
         {area === "artifacts" && <ArtifactsWorkspace key={`artifacts-${dataRevision}-${workspaceRevision}-${config.artifactsEnabled}-${dateScopeKey}`} dateRange={dateRange} config={config} />}
+        {area === "components" && <ComponentsWorkspace config={config} />}
         {area === "debugger" && <DebuggerWorkspace config={config} openProjectAction={openProjectAction} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         {area === "compare" && <CompareWorkspace key={`compare-${dataRevision}-${workspaceRevision}-${config.experimentEnabled}-${config.evidenceEnabled}`} config={config} surface={effectiveCompareSurface} navigation={null} sessionIds={sessionCompareIds} openProjectAction={openProjectAction} onOpenSessions={() => openArea("sessions")} onOpenSession={(id) => { setSessionOpenId(id); openArea("sessions"); }} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         </>}

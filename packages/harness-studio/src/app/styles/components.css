@@ -1,0 +1,288 @@
+/* The Components workbench: the apps host's record list beside the selected component's UI. */
+
+.components-workbench {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── records list ─────────────────────────────────────────────────────────── */
+
+.components-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.components-list-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-subtle);
+  font-size: var(--type-pane-size);
+  line-height: var(--type-pane-line);
+  letter-spacing: var(--type-pane-track);
+}
+
+.components-list-toolbar button,
+.components-pane-header button,
+.components-empty button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: var(--toolbar-target);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--type-label-size);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.components-list-toolbar button {
+  min-height: var(--space-xl);
+  padding: 0 var(--space-sm);
+}
+
+.components-list-toolbar button:hover,
+.components-pane-header button:hover,
+.components-empty button:hover {
+  background: var(--color-surface-hover);
+}
+
+.components-list-toolbar button:focus-visible,
+.components-pane-header button:focus-visible,
+.components-empty button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.components-list-toolbar button:disabled,
+.components-pane-header button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.components-list-note {
+  margin: 0;
+  padding: var(--space-md);
+  color: var(--color-text-subtle);
+}
+
+.components-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.components-list-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.components-list-item[aria-current="true"] {
+  background: var(--color-surface-selected);
+}
+
+.components-list-item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.components-list-item > svg {
+  color: var(--color-text-subtle);
+}
+
+.components-list-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.components-list-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--weight-medium);
+}
+
+.components-list-name small {
+  color: var(--color-text-subtle);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.components-list-state {
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-subtle);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.components-list-state.is-enabled {
+  background: var(--color-success-surface);
+  color: var(--color-success);
+}
+
+/* ── the mounted component pane ───────────────────────────────────────────── */
+
+.components-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-workspace);
+}
+
+.components-pane-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.components-pane-identity {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.components-pane-identity h2 {
+  margin: 0;
+  font-size: var(--type-section-size);
+  line-height: var(--type-section-line);
+  letter-spacing: var(--type-section-track);
+  font-weight: var(--weight-semibold);
+}
+
+.components-pane-identity small {
+  color: var(--color-text-subtle);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.components-backend {
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-subtle);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.components-backend.is-running {
+  background: var(--color-success-surface);
+  color: var(--color-success);
+}
+
+.components-pane-failure {
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+/* ── hosted component frame (shared by the Components workbench and any
+      other surface that mounts an entry) ──────────────────────────────────── */
+
+.hosted-component-frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.hosted-component {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
+.hosted-component-failure {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+.hosted-component-failure p {
+  margin: var(--space-xs) 0 0;
+}
+
+/* ── empty and explained states ───────────────────────────────────────────── */
+
+.components-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-xxl) var(--space-lg);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.components-empty-frame {
+  height: 100%;
+}
+
+.components-empty strong {
+  color: var(--color-text);
+  font-size: var(--type-section-size);
+  line-height: var(--type-section-line);
+  font-weight: var(--weight-semibold);
+}
+
+.components-empty p {
+  margin: 0;
+  max-width: 64ch;
+}
+
+/* ── compact and narrow windows ───────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+  .components-workbench {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .components-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .components-list {
+    max-height: 40%;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+}

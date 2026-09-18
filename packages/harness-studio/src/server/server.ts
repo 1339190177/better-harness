@@ -24,6 +24,7 @@ import { createCheckpointHistoryCatalogAdapter } from "./query/checkpoint-histor
 import { discoverArtifactProviderRuntime } from "./artifacts/registry/artifact-provider-discovery.js";
 import type { AcpAgentPlacement, HarnessStudioServerOptions, HarnessStudioState, StudioAcpAgentOptions } from "./studio-types.js";
 import { decodeRouteComponent, respondJson, sameOriginRequest } from "./http-utils.js";
+import { routeAppsHost } from "./apps-host.js";
 import { assertStudioBindAddressAllowed } from "./bind-policy.js";
 import { streamHarnessRun } from "./run-stream.js";
 import {
@@ -258,6 +259,7 @@ async function route(
   experimentRuns: Map<string, AbortController>,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
+  if (routeAppsHost(request, response, options)) return;
   if (await sessionPerformanceRoute(request, response, state, options)) return;
   if (await memoryRoute(request, response, state, options)) return;
   if (await architectureAcpRoute(request, response, state, options)) return;
@@ -274,6 +276,7 @@ async function route(
       acpAgents: publicAcpAgentProfiles(options).agents,
       artifactsEnabled: state.artifactDirectory !== undefined,
       artifactCount: state.artifactPaths?.length,
+      appsHostEnabled: options.appsHostUrl !== undefined,
       evidenceEnabled: activeSourcePath(state.sourceCatalog, state.activeSources, "evidence") !== undefined,
       experimentEnabled: state.activeManifestPath !== undefined,
       experimentRunnable: await isActiveExperimentRunnable(options, state),

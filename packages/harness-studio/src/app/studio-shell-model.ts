@@ -9,6 +9,7 @@ export type StudioArea =
   | "commits"
   | "impact"
   | "artifacts"
+  | "components"
   | "debugger"
   | "compare";
 
@@ -64,6 +65,8 @@ export interface StudioConfig {
   acpAgents?: readonly StudioAcpAgentOption[];
   artifactsEnabled: boolean;
   artifactCount?: number;
+  /** Whether an apps host is configured, so the Components workbench has a surface to host. */
+  appsHostEnabled?: boolean;
   evidenceEnabled: boolean;
   experimentEnabled: boolean;
   experimentRunnable: boolean;
@@ -145,7 +148,8 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
 
   // Rows are ordered by the sidebar section they belong to. Daily reading —
   // Sessions and its sub-routes, then the Customizations catalog — comes first;
-  // the professional workbenches (Memory, Compare, Debugger, Artifacts) follow.
+  // the professional workbenches (Memory, Compare, Debugger, Artifacts,
+  // Components) follow.
   // The sidebar groups consecutive rows that share a `group` label under one
   // header, so this order is what draws the Daily and Professional sections.
   return [
@@ -218,6 +222,13 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
       availability: "ready",
       status: artifactsStatus(),
     },
+    {
+      id: "components",
+      label: t("area.components"),
+      group: t("group.professional"),
+      availability: config.appsHostEnabled ? "ready" : "foundation",
+      status: config.appsHostEnabled ? t("destination.componentsHostConnected") : t("destination.componentsHostRequired"),
+    },
   ];
 }
 
@@ -274,7 +285,7 @@ function hasUsableArtifacts(config: StudioConfig): boolean {
 }
 
 export function studioProjectGateRequired(config: StudioConfig, hasConfiguredSources: boolean, area: StudioArea = STUDIO_DEFAULT_AREA): boolean {
-  if (area === "artifacts" || area === "memory-sources" || area === "memory") return false;
+  if (area === "artifacts" || area === "components" || area === "memory-sources" || area === "memory") return false;
   const independentContext = hasConfiguredSources
     || config.inspectorEnabled
     || config.evidenceEnabled

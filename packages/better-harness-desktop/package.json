@@ -26,7 +26,8 @@
     "test:go": "node scripts/go.mjs --test"
   },
   "dependencies": {
-    "@qoder-ai/harness-studio": "0.1.1"
+    "@qoder-ai/harness-studio": "0.1.1",
+    "@qoder-ai/harness-studio-apps": "0.1.0"
   },
   "devDependencies": {
     "electron": "44.2.0",
@@ -53,7 +54,8 @@
       "**/@qoder-ai/harness-studio/dist/agent-react/contracts/**",
       "**/node_modules/react/**",
       "**/node_modules/react-dom/**",
-      "**/node_modules/scheduler/**"
+      "**/node_modules/scheduler/**",
+      "**/harness-studio-apps/**"
     ],
     "npmRebuild": false,
     "mac": {

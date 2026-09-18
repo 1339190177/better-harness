@@ -51,7 +51,7 @@ port.on('message', async (data) => {
     if (isMessage(data, 'start') && !starting && !stopping) {
       // `boxExecExecutable` is optional: builds without BoxLite omit it, and
       // Studio then offers no microVM placement. A wrong type is still a fault.
-      if (typeof data.token !== 'string' || data.token.length !== 64 || typeof data.dataDirectory !== 'string' || (data.esbuildExecutable !== undefined && (typeof data.esbuildExecutable !== 'string' || data.esbuildTransport !== 'nsxpc' || process.platform !== 'darwin')) || (data.boxExecExecutable !== undefined && typeof data.boxExecExecutable !== 'string') || typeof data.oxcExecutable !== 'string' || typeof data.acpHostExecutable !== 'string' || typeof data.evidenceHostExecutable !== 'string' || typeof data.diffHostExecutable !== 'string' || typeof data.archHostExecutable !== 'string' || !['stdio', 'nsxpc'].includes(data.oxcTransport) || !['stdio', 'nsxpc'].includes(data.acpHostTransport) || !['stdio', 'nsxpc'].includes(data.evidenceHostTransport) || !['stdio', 'nsxpc'].includes(data.diffHostTransport) || !['stdio', 'nsxpc'].includes(data.archHostTransport)) {
+      if (typeof data.token !== 'string' || data.token.length !== 64 || typeof data.dataDirectory !== 'string' || (data.esbuildExecutable !== undefined && (typeof data.esbuildExecutable !== 'string' || data.esbuildTransport !== 'nsxpc' || process.platform !== 'darwin')) || (data.boxExecExecutable !== undefined && typeof data.boxExecExecutable !== 'string') || typeof data.oxcExecutable !== 'string' || typeof data.acpHostExecutable !== 'string' || typeof data.evidenceHostExecutable !== 'string' || typeof data.diffHostExecutable !== 'string' || typeof data.archHostExecutable !== 'string' || (data.appsHostUrl !== undefined && typeof data.appsHostUrl !== 'string') || !['stdio', 'nsxpc'].includes(data.oxcTransport) || !['stdio', 'nsxpc'].includes(data.acpHostTransport) || !['stdio', 'nsxpc'].includes(data.evidenceHostTransport) || !['stdio', 'nsxpc'].includes(data.diffHostTransport) || !['stdio', 'nsxpc'].includes(data.archHostTransport)) {
         throw new Error('Invalid Studio startup contract');
       }
       starting = true;
@@ -134,6 +134,7 @@ port.on('message', async (data) => {
         structuralDiffProvider: diffHost,
         architectureImpactProvider: archHost,
         ...(data.boxExecExecutable === undefined ? {} : { boxExecExecutable: data.boxExecExecutable }),
+        ...(typeof data.appsHostUrl === 'string' ? { appsHostUrl: data.appsHostUrl } : {}),
         acpAgents,
         harnessMode: 'workspace-default',
         appDir: defaultAppDir(), host: '127.0.0.1', port: 0, accessToken: data.token,
