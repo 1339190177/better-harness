@@ -79,6 +79,29 @@ export interface StudioObservationWindow {
 export interface StudioWorkspaceSessionProvider {
   discover(workspacePath: string, window?: StudioObservationWindow): Promise<StudioWorkspaceDiscovery>;
 }
+/**
+ * The terminal capability Studio exposes over `/api/pty/*`.
+ *
+ * Structurally satisfied by the desktop's `RustPtyHost`. Kept minimal and local
+ * (rather than importing the host type) so the server contract does not depend
+ * on a desktop-only transport module.
+ */
+export interface PtyProvider {
+  spawn(params: {
+    command: string;
+    args?: readonly string[];
+    cwd?: string;
+    rows?: number;
+    cols?: number;
+    term?: string;
+  }): Promise<number>;
+  write(ptyId: number, data: Buffer | string): Promise<number>;
+  resize(ptyId: number, rows: number, cols: number): Promise<void>;
+  signal(ptyId: number, signal: number): Promise<void>;
+  closePty(ptyId: number): Promise<void>;
+  onData(handler: (event: { ptyId: number; data: Buffer }) => void): () => void;
+  onExit(handler: (event: { ptyId: number; code: number | null; signal: number | null }) => void): () => void;
+}
 export interface HarnessStudioServerOptions {
   /** Server-owned Qoder log root; browser requests cannot override it. */
   sessionPerformanceHome?: string;
@@ -168,6 +191,14 @@ export interface HarnessStudioServerOptions {
    * reports "unavailable".
    */
   architectureImpactProvider?: ArchitectureImpactProvider;
+  /**
+   * Native pseudo-terminal host. When present, Studio exposes `/api/pty/*` so a
+   * terminal surface can spawn a child under a real TTY and stream its bytes;
+   * when absent the browser is shown no terminal control. Duplex by nature
+   * (output arrives on the child's schedule), so it is an event source, not a
+   * request/reply provider.
+   */
+  ptyProvider?: PtyProvider;
   /**
    * Which ACP host `acpHostExecutable` is. `"nsxpc"` means it is the macOS
    * `harness-acp-client` bridge to a launchd-managed service; `"stdio"` (default)

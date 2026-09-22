@@ -1,0 +1,45 @@
+/* The Terminal workbench: a native pseudo-terminal rendered with xterm. */
+
+.terminal-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-workspace);
+}
+
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.terminal-status {
+  margin-right: auto;
+  color: var(--color-text-subtle);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.terminal-error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+}
+
+.terminal-surface {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--space-sm);
+}
+
+/* xterm draws its own scrollbar; keep its viewport flush with our padding. */
+.terminal-surface .xterm {
+  height: 100%;
+}

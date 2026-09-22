@@ -41,6 +41,7 @@ const VIEW_ICONS: Record<StudioArea, Icon> = {
   impact: Broadcast,
   artifacts: Package,
   components: AppWindow,
+  terminal: Terminal,
   debugger: BugBeetle,
   compare: Flask,
 };

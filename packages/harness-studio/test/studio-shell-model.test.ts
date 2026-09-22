@@ -80,6 +80,7 @@ describe("Studio control-plane navigation", () => {
       "debugger",
       "artifacts",
       "components",
+      "terminal",
     ]);
     // The landing View must be one the shell can actually resolve.
     expect(destinations.map((destination) => destination.id)).toContain(STUDIO_DEFAULT_AREA);
@@ -111,7 +112,7 @@ describe("Studio control-plane navigation", () => {
       availability: "foundation",
       status: "Project required",
     });
-    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 7 });
+    expect(capabilitySummary(EMPTY, commonT)).toEqual({ ready: 2, partial: 1, foundation: 8 });
     expect(studioProjectGateRequired({ ...EMPTY, workspaceDiscoveryEnabled: true }, false, "memory-sources")).toBe(false);
     expect(studioProjectGateRequired({ ...EMPTY, workspaceDiscoveryEnabled: true }, false, "components")).toBe(false);
   });
@@ -162,7 +163,7 @@ describe("Studio control-plane navigation", () => {
     });
     // Impact stays partial here: the fixture has a repository but no staged
     // architecture host, which is exactly what that availability means.
-    expect(capabilitySummary(config, commonT)).toEqual({ ready: 8, partial: 1, foundation: 1 });
+    expect(capabilitySummary(config, commonT)).toEqual({ ready: 8, partial: 1, foundation: 2 });
   });
 
   it("treats an artifact directory as independent of every other input", () => {

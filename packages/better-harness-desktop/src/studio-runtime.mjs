@@ -131,6 +131,7 @@ port.on('message', async (data) => {
       let ptyPid;
       let ptyBridgePid;
       let ptyRuntime = 'unavailable';
+      let ptyProvider;
       if (typeof data.ptyHostExecutable === 'string') {
         const ptyHost = createRustPtyHost({
           executable: data.ptyHostExecutable,
@@ -142,6 +143,10 @@ port.on('message', async (data) => {
           ptyPid = ptyHost.processId;
           ptyBridgePid = ptyHost.bridgeProcessId;
           ptyRuntime = data.ptyHostTransport === 'nsxpc' ? 'pty-v1-nsxpc' : 'pty-v1-rust';
+          // Only a host that proved its transport is handed to the server; a
+          // broken bundle stays unadvertised rather than surfacing a terminal
+          // control that cannot spawn.
+          ptyProvider = ptyHost;
         } catch (error) {
           console.warn(`[better-harness-desktop] pty host unavailable: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -156,6 +161,7 @@ port.on('message', async (data) => {
         acpHostTransport: data.acpHostTransport,
         structuralDiffProvider: diffHost,
         architectureImpactProvider: archHost,
+        ...(ptyProvider ? { ptyProvider } : {}),
         ...(data.boxExecExecutable === undefined ? {} : { boxExecExecutable: data.boxExecExecutable }),
         ...(typeof data.appsHostUrl === 'string' ? { appsHostUrl: data.appsHostUrl } : {}),
         acpAgents,

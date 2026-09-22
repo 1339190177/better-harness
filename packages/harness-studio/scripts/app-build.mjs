@@ -77,9 +77,12 @@ async function copyStudioAppStaticAssets({ development = false, revision } = {})
       development ? injectStudioDevReload(sourceHtml) : sourceHtml,
       "utf8",
     ),
-    ...["tokens.css", "performance.css", "memory.css", "memory-review.css", "shell.css", "workbench.css", "customizations.css", "components.css", "live-composer.css", "acp-session.css", "ai-elements.css"].map((file) =>
+    ...["tokens.css", "performance.css", "memory.css", "memory-review.css", "shell.css", "workbench.css", "customizations.css", "components.css", "terminal.css", "live-composer.css", "acp-session.css", "ai-elements.css"].map((file) =>
       copyFile(join(appStylesDir, file), join(appDir, "assets", file)),
     ),
+    // The terminal emulator ships its own stylesheet; copy it beside ours and
+    // link it from index.html rather than importing CSS through the JS bundler.
+    copyFile(join(repositoryRoot, "node_modules", "@xterm", "xterm", "css", "xterm.css"), join(appDir, "assets", "xterm.css")),
     copyFile(join(appSourceDir, "components", "ai-elements", "LICENSE"), join(appDir, "assets", "ai-elements.LICENSE")),
     copyFile(join(inspectorAssetRoot, "workbench.css"), join(appDir, "assets", "inspector-workbench.css")),
     copyFile(join(repositoryRoot, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"), join(appDir, "assets", "pdf.worker.mjs")),

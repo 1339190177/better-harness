@@ -10,6 +10,7 @@ export type StudioArea =
   | "impact"
   | "artifacts"
   | "components"
+  | "terminal"
   | "debugger"
   | "compare";
 
@@ -58,6 +59,8 @@ export interface StudioConfig {
   structuralDiffEnabled?: boolean;
   /** Whether a native architecture host is staged, so the Impact surface has something to read. */
   architectureImpactEnabled?: boolean;
+  /** Whether a native pty host is staged, so a terminal surface can spawn a real TTY. */
+  ptyEnabled?: boolean;
   runEnabled: boolean;
   acpEnabled: boolean;
   acpAgentLabel?: string;
@@ -229,6 +232,15 @@ export function studioDestinations(config: StudioConfig, activeCompareSurface: S
       availability: config.appsHostEnabled ? "ready" : "foundation",
       status: config.appsHostEnabled ? t("destination.componentsHostConnected") : t("destination.componentsHostRequired"),
     },
+    {
+      // The native pseudo-terminal surface. Foundation until a pty host is
+      // staged, the same way Impact and Components report a missing native host.
+      id: "terminal",
+      label: t("area.terminal"),
+      group: t("group.professional"),
+      availability: config.ptyEnabled ? "ready" : "foundation",
+      status: config.ptyEnabled ? t("destination.terminalReady") : t("destination.terminalRequired"),
+    },
   ];
 }
 
@@ -285,7 +297,7 @@ function hasUsableArtifacts(config: StudioConfig): boolean {
 }
 
 export function studioProjectGateRequired(config: StudioConfig, hasConfiguredSources: boolean, area: StudioArea = STUDIO_DEFAULT_AREA): boolean {
-  if (area === "artifacts" || area === "components" || area === "memory-sources" || area === "memory") return false;
+  if (area === "artifacts" || area === "components" || area === "terminal" || area === "memory-sources" || area === "memory") return false;
   const independentContext = hasConfiguredSources
     || config.inspectorEnabled
     || config.evidenceEnabled

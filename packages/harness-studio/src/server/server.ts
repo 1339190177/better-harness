@@ -27,6 +27,7 @@ import { decodeRouteComponent, respondJson, sameOriginRequest } from "./http-uti
 import { routeAppsHost } from "./apps-host.js";
 import { assertStudioBindAddressAllowed } from "./bind-policy.js";
 import { streamHarnessRun } from "./run-stream.js";
+import { ptyRoute } from "./pty-routes.js";
 import {
   acpAgentEnabled,
   acpExecutorFactory,
@@ -262,6 +263,7 @@ async function route(
   if (routeAppsHost(request, response, options)) return;
   if (await sessionPerformanceRoute(request, response, state, options)) return;
   if (await memoryRoute(request, response, state, options)) return;
+  if (await ptyRoute(request, response, options)) return;
   if (await architectureAcpRoute(request, response, state, options)) return;
   if (request.method === "GET" && url.pathname === "/api/config") {
     const defaultAcpAgent = options.acpAgent
@@ -287,6 +289,7 @@ async function route(
       sessionPerformanceEnabled: options.sessionPerformanceProvider !== undefined,
       structuralDiffEnabled: options.structuralDiffProvider !== undefined,
       architectureImpactEnabled: options.architectureImpactProvider !== undefined,
+      ptyEnabled: options.ptyProvider !== undefined,
       workspaceWorkbenchEnabled: state.workspace?.inspectorReport !== undefined,
       workspaceDiscoveryEnabled: options.workspaceSessionProvider !== undefined,
       workspaceConnected: state.workspace !== undefined,

@@ -25,6 +25,8 @@ const setup = (overrides = {}) => {
     diffHostTransport: 'nsxpc',
     archHostExecutable: '/native/harness-arch-host',
     archHostTransport: 'nsxpc',
+    ptyHostExecutable: '/native/harness-pty-client',
+    ptyHostTransport: 'nsxpc',
     pickDirectory: async () => undefined,
     onFailure: (error) => failures.push(error), ...overrides,
   });
@@ -55,6 +57,8 @@ test('startup sends the versioned contract and returns the validated ready resul
   assert.equal(child.sent[0].diffHostTransport, 'nsxpc');
   assert.equal(child.sent[0].archHostExecutable, '/native/harness-arch-host');
   assert.equal(child.sent[0].archHostTransport, 'nsxpc');
+  assert.equal(child.sent[0].ptyHostExecutable, '/native/harness-pty-client');
+  assert.equal(child.sent[0].ptyHostTransport, 'nsxpc');
   ready(child);
   assert.equal((await service.started).url, 'http://127.0.0.1:3311');
   const stopping = service.stop();

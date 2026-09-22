@@ -68,6 +68,7 @@ import {
 } from "./studio-shell-model.js";
 
 const SessionPerformanceWorkspace = lazy(() => import("./performance/SessionPerformanceWorkspace.js"));
+const TerminalWorkspace = lazy(async () => ({ default: (await import("./TerminalWorkspace.js")).TerminalWorkspace }));
 
 const STUDIO_AREAS: readonly StudioArea[] = [
   "memory",
@@ -79,6 +80,7 @@ const STUDIO_AREAS: readonly StudioArea[] = [
   "impact",
   "artifacts",
   "components",
+  "terminal",
   "debugger",
   "compare",
 ];
@@ -677,7 +679,7 @@ export function App(): React.JSX.Element {
         {showWelcome ? <WorkspaceWelcome dateRange={dateRange} onWorkspaceChanged={async () => {
           const projectId = await workspaceChanged();
           globalThis.history.replaceState(null, "", shellHash({ area, ...(projectId === undefined ? {} : { projectId }) }));
-        }} /> : config.workspaceScanRequired && !["memory", "memory-sources", "debugger", "compare"].includes(area) ? <EmptyWorkspace eyebrow={activeProject?.label ?? ""} title={t("sidebar.scanPendingTitle")} detail={t("sidebar.scanPendingDetail")} action={canScanProject ? { label: projectScanning ? t("sidebar.scanning") : t("sidebar.scanProject"), onClick: () => void scanStudioProject(), disabled: projectOpening } : undefined} /> : <>
+        }} /> : config.workspaceScanRequired && !["memory", "memory-sources", "terminal", "debugger", "compare"].includes(area) ? <EmptyWorkspace eyebrow={activeProject?.label ?? ""} title={t("sidebar.scanPendingTitle")} detail={t("sidebar.scanPendingDetail")} action={canScanProject ? { label: projectScanning ? t("sidebar.scanning") : t("sidebar.scanProject"), onClick: () => void scanStudioProject(), disabled: projectOpening } : undefined} /> : <>
         {area === "session-performance" && <SessionPerformanceWorkspace key={`performance-${config.activeProjectId}-${config.projectRevision}`} config={config} dateRange={dateRange} />}
         {area === "sessions" && <SessionsWorkspace key={`sessions-${dataRevision}-${workspaceRevision}-${sessionOpenId ?? "recent"}-${dateScopeKey}`} dateRange={dateRange} config={config} initialSessionId={sessionOpenId} openProjectAction={openProjectAction} onCompare={(ids) => { setSessionCompareIds(ids); setCompareSurface("sessions"); openArea("compare"); }} />}
         {area === "customizations" && (config.customizationAnalysisEnabled
@@ -687,6 +689,9 @@ export function App(): React.JSX.Element {
         {area === "impact" && (config.gitEnabled ? <ImpactView key={`impact-${workspaceRevision}`} hostAvailable={config.architectureImpactEnabled === true} /> : <EmptyWorkspace eyebrow={t("git:empty.eyebrow")} title={config.workspaceConnected ? t("git:empty.titleConnected") : t("git:empty.titleDisconnected")} detail={config.workspaceConnected ? t("git:empty.detailConnected") : projectDiscoveryDetail} action={openProjectAction} />)}
         {area === "artifacts" && <ArtifactsWorkspace key={`artifacts-${dataRevision}-${workspaceRevision}-${config.artifactsEnabled}-${dateScopeKey}`} dateRange={dateRange} config={config} />}
         {area === "components" && <ComponentsWorkspace config={config} />}
+        {area === "terminal" && (config.ptyEnabled
+          ? <Suspense fallback={null}><TerminalWorkspace /></Suspense>
+          : <EmptyWorkspace eyebrow={t("group.professional")} title={t("destination.terminalRequired")} detail={t("terminal.unavailableDetail")} />)}
         {area === "debugger" && <DebuggerWorkspace config={config} openProjectAction={openProjectAction} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         {area === "compare" && <CompareWorkspace key={`compare-${dataRevision}-${workspaceRevision}-${config.experimentEnabled}-${config.evidenceEnabled}`} config={config} surface={effectiveCompareSurface} navigation={null} sessionIds={sessionCompareIds} openProjectAction={openProjectAction} onOpenSessions={() => openArea("sessions")} onOpenSession={(id) => { setSessionOpenId(id); openArea("sessions"); }} project={activeProject === undefined ? undefined : { id: activeProject.id, label: activeProject.label, revision: config.projectRevision ?? 0 }} />}
         </>}
