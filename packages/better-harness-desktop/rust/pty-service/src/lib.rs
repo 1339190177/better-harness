@@ -15,6 +15,9 @@
 pub mod ffi;
 pub mod wire;
 
+#[cfg(target_os = "macos")]
+pub mod xpc;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};

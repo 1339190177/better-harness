@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc, installArchXpc } from './nsxpc-bundle.mjs';
+import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc, installArchXpc, installPtyXpc } from './nsxpc-bundle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const test = process.argv.includes('--test');
@@ -56,6 +56,9 @@ if (!test) {
   await stage('harness-evidence-host');
   await stage('harness-diff-host');
   await stage('harness-arch-host');
+  // The pty terminal driver ships as a plain staged driver on every platform;
+  // macOS additionally reaches it through the NSXPC bundle installed below.
+  if (process.platform !== 'win32') await stage('harness-pty-host');
   // Studio spawns the shim directly in an Agent's place, so it is a plain
   // staged executable. The driver beside it is the off-macOS fallback; on macOS
   // the shim prefers the bundled bridge staged below, which reaches the one
@@ -85,6 +88,7 @@ if (!test && process.platform === 'darwin') {
     'harness-evidence-client', 'harness-evidence-xpc',
     'harness-diff-client', 'harness-diff-xpc',
     'harness-arch-client', 'harness-arch-xpc',
+    'harness-pty-client', 'harness-pty-xpc',
   ]) {
     await cp(join(binaries, binary), join(native, binary));
   }
@@ -107,6 +111,11 @@ if (!test && process.platform === 'darwin') {
   // third-party notice.
   await installArchXpc(archApp, native, { development: true });
   execFileSync('codesign', ['--force', '--sign', '-', '--deep', archApp], { stdio: 'inherit' });
+  const ptyApp = join(root, 'dist', 'native', 'Harness Pty.app');
+  // The pty service bundles no vendored engine, so like Arch it installs no
+  // third-party notice.
+  await installPtyXpc(ptyApp, native, { development: true });
+  execFileSync('codesign', ['--force', '--sign', '-', '--deep', ptyApp], { stdio: 'inherit' });
   if (box) {
     for (const binary of ['harness-box-client', 'harness-box-xpc']) {
       await cp(join(binaries, binary), join(root, 'dist', 'native', binary));

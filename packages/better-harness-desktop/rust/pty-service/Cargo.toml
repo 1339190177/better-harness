@@ -13,6 +13,18 @@ publish = false
 name = "harness-pty-host"
 path = "src/main.rs"
 
+# macOS reaches the driver through an NSXPC service (the launchd-managed
+# `harness-pty-xpc`) that Studio talks to via the `harness-pty-client` bridge.
+# Both are macOS-only; on other platforms they refuse to run and Studio spawns
+# the stdio driver directly.
+[[bin]]
+name = "harness-pty-xpc"
+path = "src/bin/harness-pty-xpc.rs"
+
+[[bin]]
+name = "harness-pty-client"
+path = "src/bin/harness-pty-client.rs"
+
 [dependencies]
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }
@@ -22,6 +34,11 @@ tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt", "rt-mu
 [profile.release]
 lto = "thin"
 strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "libc", "NSXPCConnection", "NSObject", "NSString", "NSData", "NSError", "NSSet", "NSRunLoop", "block2"] }
+block2 = "0.6.2"
 
 [build-dependencies]
 cc = "1"

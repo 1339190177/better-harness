@@ -77,6 +77,15 @@ export {
   type RustArchHostOptions,
 } from "./server/workspace/rust-arch-provider.js";
 export {
+  createRustPtyHost,
+  PTY_HOST_PROTOCOL_VERSION,
+  type RustPtyHost,
+  type RustPtyHostOptions,
+  type PtySpawnParams,
+  type PtyDataEvent,
+  type PtyExitEvent,
+} from "./server/workspace/rust-pty-provider.js";
+export {
   createSupervisedRustHost,
   RustHostError,
   type RustHostFailure,

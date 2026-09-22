@@ -8,6 +8,7 @@ import {
   createRustEvidenceHost, createRustEvidenceWorkspaceSessionProvider,
   createRustDiffHost,
   createRustArchHost,
+  createRustPtyHost,
   createBundledAgentCustomizationCollector,
 } from '@qoder-ai/harness-studio';
 
@@ -123,9 +124,31 @@ port.on('message', async (data) => {
       });
       compilers.add({ close: () => archHost.close() });
       await archHost.describe();
+      // The terminal driver. Unlike the four above, nothing consumes it yet, so
+      // a broken host must not abort startup: describe it best-effort to prove
+      // the service hop when the bundle is present, and carry on when it is not
+      // (Windows has no ConPTY backend, so it is simply absent there).
+      let ptyPid;
+      let ptyBridgePid;
+      let ptyRuntime = 'unavailable';
+      if (typeof data.ptyHostExecutable === 'string') {
+        const ptyHost = createRustPtyHost({
+          executable: data.ptyHostExecutable,
+          transport: data.ptyHostTransport,
+        });
+        compilers.add({ close: () => ptyHost.close() });
+        try {
+          await ptyHost.describe();
+          ptyPid = ptyHost.processId;
+          ptyBridgePid = ptyHost.bridgeProcessId;
+          ptyRuntime = data.ptyHostTransport === 'nsxpc' ? 'pty-v1-nsxpc' : 'pty-v1-rust';
+        } catch (error) {
+          console.warn(`[better-harness-desktop] pty host unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
       // Local diagnostic receipt, without source text or credentials. Emitted
       // once every host has proven itself, so the receipt covers all of them.
-      console.info(JSON.stringify({ kind: 'better-harness-desktop.oxc-proof', rust: true, transport: data.oxcTransport, bridgePid, oxcPid, studioPid: process.pid, oxcNativeLoaded: false, esbuildPid, esbuildBridgePid, esbuildTransport: artifactLinkerFactory ? data.esbuildTransport : 'wasm', esbuildVersion: artifactLinkerFactory ? GO_ESBUILD_LINKER_VERSION : undefined, acpTransport: data.acpHostTransport, acpRuntime: data.acpHostTransport === 'nsxpc' ? 'acp-v1-nsxpc' : 'acp-v1-rust', evidenceTransport: data.evidenceHostTransport, evidenceRuntime: data.evidenceHostTransport === 'nsxpc' ? 'evidence-v1-nsxpc' : 'evidence-v1-rust', diffTransport: data.diffHostTransport, diffRuntime: data.diffHostTransport === 'nsxpc' ? 'diff-v1-nsxpc' : 'diff-v1-rust', archPid: archHost.processId, archBridgePid: archHost.bridgeProcessId, archTransport: data.archHostTransport, archRuntime: data.archHostTransport === 'nsxpc' ? 'arch-v1-nsxpc' : 'arch-v1-rust' }));
+      console.info(JSON.stringify({ kind: 'better-harness-desktop.oxc-proof', rust: true, transport: data.oxcTransport, bridgePid, oxcPid, studioPid: process.pid, oxcNativeLoaded: false, esbuildPid, esbuildBridgePid, esbuildTransport: artifactLinkerFactory ? data.esbuildTransport : 'wasm', esbuildVersion: artifactLinkerFactory ? GO_ESBUILD_LINKER_VERSION : undefined, acpTransport: data.acpHostTransport, acpRuntime: data.acpHostTransport === 'nsxpc' ? 'acp-v1-nsxpc' : 'acp-v1-rust', evidenceTransport: data.evidenceHostTransport, evidenceRuntime: data.evidenceHostTransport === 'nsxpc' ? 'evidence-v1-nsxpc' : 'evidence-v1-rust', diffTransport: data.diffHostTransport, diffRuntime: data.diffHostTransport === 'nsxpc' ? 'diff-v1-nsxpc' : 'diff-v1-rust', archPid: archHost.processId, archBridgePid: archHost.bridgeProcessId, archTransport: data.archHostTransport, archRuntime: data.archHostTransport === 'nsxpc' ? 'arch-v1-nsxpc' : 'arch-v1-rust', ptyTransport: data.ptyHostTransport, ptyRuntime, ptyPid, ptyBridgePid }));
       server = await startHarnessStudioServer({
         oxcCompilerFactory,
         artifactLinkerFactory,

@@ -209,6 +209,16 @@ else {
       archHostExecutable: process.platform === 'darwin'
         ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Arch.app/Contents', import.meta.url)), 'MacOS', 'harness-arch-client')
         : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', process.platform === 'win32' ? 'harness-arch-host.exe' : 'harness-arch-host'),
+      // The pty terminal driver reaches its child through a real controlling
+      // terminal. macOS routes it through its own launchd NSXPC service like the
+      // others; Windows has no ConPTY backend yet, so it is offered on POSIX
+      // only and left undefined on Windows.
+      ptyHostTransport: process.platform === 'darwin' ? 'nsxpc' : 'stdio',
+      ptyHostExecutable: process.platform === 'darwin'
+        ? join(app.isPackaged ? join(process.resourcesPath, '..') : fileURLToPath(new URL('../dist/native/Harness Pty.app/Contents', import.meta.url)), 'MacOS', 'harness-pty-client')
+        : process.platform === 'win32'
+          ? undefined
+          : join(app.isPackaged ? process.resourcesPath : fileURLToPath(new URL('../dist', import.meta.url)), 'native', 'harness-pty-host'),
       // The microVM shim is built only where BoxLite can be compiled, so its
       // absence is normal rather than an error: Studio then hides the placement
       // instead of offering a run it cannot start.

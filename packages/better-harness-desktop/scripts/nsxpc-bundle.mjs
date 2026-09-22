@@ -7,6 +7,7 @@ export const acpServiceId = 'com.qoder.harness-studio.acp';
 export const evidenceServiceId = 'com.qoder.harness-studio.evidence';
 export const diffServiceId = 'com.qoder.harness-studio.diff';
 export const archServiceId = 'com.qoder.harness-studio.arch';
+export const ptyServiceId = 'com.qoder.harness-studio.pty';
 export const esbuildServiceId = 'com.qoder.harness-studio.esbuild';
 const plist = (body) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -199,6 +200,35 @@ export async function installArchXpc(appPath, binaryDirectory, { development = f
   if (development) await writeFile(join(contents, 'Info.plist'), plist(`
 <key>CFBundleIdentifier</key><string>${archServiceId}-development</string>
 <key>CFBundleExecutable</key><string>harness-arch-client</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSUIElement</key><true/>`));
+}
+
+/**
+ * Pseudo-terminal NSXPC service, same shape as Arch: the service spawns one
+ * unmodified `harness-pty-host` driver per connection and only tunnels frames,
+ * so each terminal session keeps its own process. The relay is frame-agnostic,
+ * which is why a duplex host (streaming `pty.data`/`pty.exit` events) needs no
+ * special transport handling here.
+ */
+export async function installPtyXpc(appPath, binaryDirectory, { development = false } = {}) {
+  const contents = join(appPath, 'Contents');
+  const service = join(contents, 'XPCServices', `${ptyServiceId}.xpc`, 'Contents');
+  await mkdir(join(contents, 'MacOS'), { recursive: true });
+  await mkdir(join(service, 'MacOS'), { recursive: true });
+  await cp(join(binaryDirectory, 'harness-pty-client'), join(contents, 'MacOS', 'harness-pty-client'));
+  await cp(join(binaryDirectory, 'harness-pty-xpc'), join(service, 'MacOS', 'harness-pty-xpc'));
+  await cp(join(binaryDirectory, 'harness-pty-host'), join(service, 'MacOS', 'harness-pty-host'));
+  await writeFile(join(service, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${ptyServiceId}</string>
+<key>CFBundleExecutable</key><string>harness-pty-xpc</string>
+<key>CFBundlePackageType</key><string>XPC!</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>XPCService</key><dict><key>ServiceType</key><string>Application</string></dict>`));
+  if (development) await writeFile(join(contents, 'Info.plist'), plist(`
+<key>CFBundleIdentifier</key><string>${ptyServiceId}-development</string>
+<key>CFBundleExecutable</key><string>harness-pty-client</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSUIElement</key><true/>`));

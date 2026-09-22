@@ -80,7 +80,8 @@
             "harness-evidence-host*",
             "harness-diff-host*",
             "harness-diff-service.NOTICES.txt",
-            "harness-arch-host*"
+            "harness-arch-host*",
+            "harness-pty-host*"
           ]
         }
       ]
@@ -102,7 +103,8 @@
             "harness-evidence-host*",
             "harness-diff-host*",
             "harness-diff-service.NOTICES.txt",
-            "harness-arch-host*"
+            "harness-arch-host*",
+            "harness-pty-host*"
           ]
         }
       ]

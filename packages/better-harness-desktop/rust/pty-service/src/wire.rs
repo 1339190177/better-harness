@@ -184,6 +184,15 @@ pub fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// The NSXPC transport proof frame the bridge must present before any reply, so
+/// a caller can tell a real service hop from a silent stdio fallback.
+#[cfg(target_os = "macos")]
+pub fn transport_proof(service_pid: u32, bridge_pid: i32) -> String {
+    format!(
+        "{{\"version\":1,\"event\":{{\"type\":\"transport\",\"transport\":\"nsxpc\",\"servicePid\":{service_pid},\"bridgePid\":{bridge_pid}}}}}\n"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
