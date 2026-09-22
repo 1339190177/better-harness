@@ -38,6 +38,10 @@ cargo('evidence-host');
 // it links; the engine has no build step of its own.
 cargo('diff-service');
 cargo('arch-service');
+// The pty terminal driver is a POSIX-only proof-of-concept: built and tested
+// for maintenance, but deliberately not staged, bundled, or consumed by Studio.
+// Its C core uses openpty/login_tty, which have no Windows counterpart here.
+if (process.platform !== 'win32') cargo('pty-service');
 // The microVM shim is optional. Without protoc the rest of the build still
 // succeeds, Studio is given no `boxExecExecutable`, and the Debugger hides the
 // microVM placement rather than offering one it cannot honour.

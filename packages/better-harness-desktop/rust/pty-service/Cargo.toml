@@ -1,0 +1,27 @@
+[package]
+name = "harness-pty-service"
+version = "0.1.0"
+description = "Pseudo-terminal capability driver for Better Harness (POC)."
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+# The stdio driver Node spawns directly. Same shape as the other capability
+# hosts: the driver is unmodified by transport, and any future NSXPC bundle
+# would wrap it rather than replace it.
+[[bin]]
+name = "harness-pty-host"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt", "rt-multi-thread", "sync", "time"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[build-dependencies]
+cc = "1"
