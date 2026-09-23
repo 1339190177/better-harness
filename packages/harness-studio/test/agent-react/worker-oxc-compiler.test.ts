@@ -22,7 +22,7 @@ describe("Worker Oxc compiler", () => {
   it("locks every optional native binding declared by the pinned Oxc packages", async () => {
     const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
     const lock = JSON.parse(await readFile(resolve(repositoryRoot, "package-lock.json"), "utf8")) as {
-      packages: Record<string, { optionalDependencies?: Record<string, string>; [key: string]: unknown }>;
+      packages: Record<string, { version?: string; optionalDependencies?: Record<string, string>; [key: string]: unknown }>;
     };
 
     for (const packagePath of ["node_modules/oxc-parser", "node_modules/oxc-transform"]) {
@@ -31,8 +31,12 @@ describe("Worker Oxc compiler", () => {
         .filter((name) => lock.packages[`node_modules/${name}`] === undefined);
       expect(missing, `${packagePath} optional bindings missing from package-lock.json`).toEqual([]);
     }
+    // The parser it is built from is the invariant, so the expectation follows
+    // the lockfile instead of a hand-maintained pin that drifts on every bump.
+    const parserVersion = lock.packages["node_modules/oxc-parser"]?.version;
+    expect(parserVersion, "oxc-parser version must be pinned in package-lock.json").toBeDefined();
     expect(lock.packages["node_modules/@oxc-parser/binding-darwin-x64"]).toMatchObject({
-      version: "0.147.0",
+      version: parserVersion,
       optional: true,
       os: ["darwin"],
       cpu: ["x64"],
