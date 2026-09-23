@@ -245,14 +245,16 @@ function leadAdmissionErrors(admission) {
   return errors;
 }
 
-export function validateSessionPopulationBundle({ population, session, lead } = {}) {
+export function validateSessionPopulationBundle({ population, session, lead, leadObserved = true } = {}) {
+  // An unobserved lead lane keeps its own failure on the lane; binding
+  // reconciliation must not manufacture lead errors from absent data.
   const errors = [
     ...populationErrors(population, "Session", session?.population),
-    ...populationErrors(population, "lead", lead?.population),
+    ...(leadObserved ? populationErrors(population, "lead", lead?.population) : []),
     ...selectionErrors(population, "Session", session?.selection),
-    ...selectionErrors(population, "lead", lead?.selection),
+    ...(leadObserved ? selectionErrors(population, "lead", lead?.selection) : []),
     ...sessionAdmissionErrors(session?.admission),
-    ...leadAdmissionErrors(lead?.admission),
+    ...(leadObserved ? leadAdmissionErrors(lead?.admission) : []),
   ];
   if (session?.admission?.projectionPolicyFingerprint !== session?.selection?.projectionPolicyFingerprint) {
     errors.push("Session admission policy does not match its selection binding");
