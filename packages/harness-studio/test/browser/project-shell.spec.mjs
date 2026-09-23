@@ -148,12 +148,12 @@ test("switches one shared View workbench between remembered Projects", async ({ 
   await page.keyboard.press("ArrowDown");
   await expect(navigation.getByRole("button", { name: /^Commits/ })).toBeFocused();
   await page.keyboard.press("End");
-  await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeFocused();
+  await expect(navigation.getByRole("button", { name: "Terminal", exact: true })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(navigation.getByRole("button", { name: "Sessions", exact: true })).toBeFocused();
   expect(await page.locator(".studio-primary-nav nav button").evaluateAll((buttons) => buttons.filter((button) => button.tabIndex === 0).length)).toBe(1);
 
-  await expect(navigation.getByRole("button")).toHaveCount(19);
+  await expect(navigation.getByRole("button")).toHaveCount(20);
   await expect(page.locator(".studio-context-title")).toHaveText("Sessions");
 
   for (const layout of layouts) {
