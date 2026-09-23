@@ -1043,6 +1043,23 @@ test("Session population conflict rejects lead counts that contradict its bindin
   assert.equal(result.status, "failed");
   assert.equal(result.lead.error.code, "SESSION_POPULATION_BINDING_MISMATCH");
   assert.equal(result.diagnostics.sessionPopulationBinding.status, "conflict");
+  assert.equal(result.diagnostics.sessionPopulationBinding.leadObserved, true);
+  assert.ok(result.diagnostics.sessionPopulationBinding.errors
+    .includes("lead public counts do not match its population binding"));
+});
+
+test("lead lane keeps its own failure code instead of a fabricated binding mismatch", async () => {
+  const result = await collectEvidenceBundle({ workspace: ".", platform: "codex" }, dependencies({
+    analyzeHarnessEvidence: async () => {
+      throw Object.assign(new Error("lead failed before binding"), { code: "LEAD_FAILED_BEFORE_BINDING" });
+    },
+  }));
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.lead.status, "unavailable");
+  assert.equal(result.lead.error.code, "LEAD_FAILED_BEFORE_BINDING");
+  assert.equal(result.diagnostics.sessionPopulationBinding.status, "bound");
+  assert.equal(result.diagnostics.sessionPopulationBinding.leadObserved, false);
 });
 
 test("Session facts reject counts that contradict the shared all-eligible population", async () => {

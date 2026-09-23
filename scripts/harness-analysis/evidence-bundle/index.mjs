@@ -71,11 +71,13 @@ function populationDiagnostics(population, sessionEvidence, lead) {
         admission: sessionEvidence.data.admissionBinding,
       }
     : null;
+  const leadObserved = Boolean(lead?.data);
   const leadBinding = lead?.data?.sessionBinding ?? null;
   const errors = validateSessionPopulationBundle({
     population: population.binding,
     session,
     lead: leadBinding,
+    leadObserved,
   });
   const sessionEligibleCount = Number(sessionEvidence?.data?.scope?.eligibleSessions ?? -1);
   const sessionSelectedCount = Number(sessionEvidence?.data?.scope?.selectedSessions ?? -1);
@@ -84,8 +86,9 @@ function populationDiagnostics(population, sessionEvidence, lead) {
     || sessionSelectedCount !== session?.selection?.selected?.count) {
     errors.push("Session public counts do not match its population binding");
   }
-  if (Number(leadSelection.eligibleCount ?? -1) !== population.binding.eligible.count
-    || Number(leadSelection.analyzedCount ?? -1) !== leadBinding?.selection?.selected?.count) {
+  if (leadObserved
+    && (Number(leadSelection.eligibleCount ?? -1) !== population.binding.eligible.count
+      || Number(leadSelection.analyzedCount ?? -1) !== leadBinding?.selection?.selected?.count)) {
     errors.push("lead public counts do not match its population binding");
   }
   const sessionAdmission = session?.admission ?? {};
@@ -97,6 +100,7 @@ function populationDiagnostics(population, sessionEvidence, lead) {
     population: population.binding,
     sessionSelection: session?.selection ?? null,
     leadSelection: leadBinding?.selection ?? null,
+    leadObserved,
     episodes: {
       comparison: comparable ? "comparable" : "not-comparable-selection-or-policy",
       sessionTaskEpisodes: Number(sessionAdmission.taskEpisodes ?? 0),
@@ -104,7 +108,7 @@ function populationDiagnostics(population, sessionEvidence, lead) {
       leadRetainedEpisodes: Number(leadAdmission.retainedTaskEpisodes ?? 0),
       leadZeroSignalDiscardedEpisodes: Number(leadAdmission.zeroSignalDiscardedEpisodes ?? 0),
     },
-    ...(errors.length > 0 ? { errorCodes: ["SESSION_POPULATION_BINDING_MISMATCH"] } : {}),
+    ...(errors.length > 0 ? { errorCodes: ["SESSION_POPULATION_BINDING_MISMATCH"], errors } : {}),
   };
 }
 
@@ -149,7 +153,7 @@ export async function collectEvidenceBundle(options = {}, dependencies = {}) {
     leadPromise,
   ]);
   const sessionPopulationBinding = populationDiagnostics(sessionPopulation, sessionEvidence, lead);
-  if (sessionPopulationBinding.status === "conflict") {
+  if (sessionPopulationBinding.status === "conflict" && laneIsAvailable(lead)) {
     lead = unavailableLane("lead-analyzer", Object.assign(
       new Error("Session population binding mismatch"),
       { code: "SESSION_POPULATION_BINDING_MISMATCH" },
