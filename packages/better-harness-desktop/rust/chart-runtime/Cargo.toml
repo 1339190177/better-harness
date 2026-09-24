@@ -1,0 +1,39 @@
+[package]
+name = "harness-chart-runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "harness_chart_runtime"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["addon"]
+addon = ["dep:napi", "dep:napi-derive"]
+
+[dependencies]
+napi = { version = "3", default-features = false, features = ["napi8", "dyn-symbols"], optional = true }
+napi-derive = { version = "3", default-features = false, features = ["type-def"], optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+re_renderer = { version = "=0.37.0", default-features = false }
+wgpu = { version = "=30.0.1", default-features = false, features = ["std", "metal", "wgsl"] }
+glam = "=0.30.10"
+ecolor = "0.36.1"
+pollster = "0.4"
+objc2 = "0.6.3"
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFDictionary", "CFNumber", "CFString"] }
+objc2-io-surface = "0.3.2"
+objc2-metal = { version = "0.3.2", default-features = false, features = ["std", "MTLDevice", "MTLTexture", "MTLResource", "MTLPixelFormat", "objc2-io-surface"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+static_assertions = "1.1.0"
+
+[workspace]

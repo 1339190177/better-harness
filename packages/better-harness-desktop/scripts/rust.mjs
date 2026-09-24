@@ -4,8 +4,13 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installNsxpc, installAcpXpc, installBoxXpc, installEvidenceXpc, installDiffXpc, installArchXpc, installPtyXpc } from './nsxpc-bundle.mjs';
 
+import { buildChartRuntime } from './chart-runtime.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const test = process.argv.includes('--test');
+
+// 正式构建与 --test 共用独立图表入口；跨平台 stub 也必须构建，不静默跳过。
+await buildChartRuntime({ root, test });
 
 /** Build or test one Rust capability service, sharing the dist target cache. */
 function cargo(crate) {

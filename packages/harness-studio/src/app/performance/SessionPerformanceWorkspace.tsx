@@ -6,6 +6,8 @@ import { ChatText } from '@phosphor-icons/react/ChatText';
 import { PerformanceSourceView } from './PerformanceSourceView.js';
 import { SessionTranscriptPane } from './SessionTranscriptPane.js';
 import { StorageReport } from './StorageReport.js';
+import { NativeChartSurface } from '../native-chart/NativeChartSurface.js';
+import { durationSamples } from '../native-chart/chart-model.js';
 import { ToolbarActions } from '../shell/ToolbarActions.js';
 import { X } from '@phosphor-icons/react/X';
 import type { PerformanceCatalog, PerformanceDetail, TimingEvidence } from '../../contracts/session-performance.js';
@@ -44,7 +46,9 @@ function tokenFacts(facts: Record<string, string | number | boolean | null>): [s
 export default function SessionPerformanceWorkspace({ config, dateRange }: { config: StudioConfig; dateRange: StudioDateRange }): React.JSX.Element {
   const { t } = useTranslation('performance');
   const [catalog, setCatalog] = useState<PerformanceCatalog>();
-  const [detail, setDetail] = useState<PerformanceDetail>();
+  const [detailResult, setDetailResult] = useState<{ value: PerformanceDetail; scope: string }>();
+  const detailScope = `${config.activeProjectId ?? ''}:${config.projectRevision ?? 0}`;
+  const detail = detailResult?.scope === detailScope ? detailResult.value : undefined;
   const [error, setError] = useState('');
   const [detailError, setDetailError] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -76,7 +80,7 @@ export default function SessionPerformanceWorkspace({ config, dateRange }: { con
     const controller = new AbortController(); setError(''); setCatalog(undefined);
     fetch(`api/session-performance${refresh ? '?refresh=true' : ''}`, { headers, signal: controller.signal })
       .then(async response => { if (!response.ok) throw new Error(response.status === 503 ? 'unavailable' : 'error'); return await response.json() as PerformanceCatalog; })
-      .then(setCatalog).catch(e => { if (!controller.signal.aborted) setError(e.message === 'unavailable' ? 'unavailable' : 'error'); });
+      .then(value => { if (!controller.signal.aborted) setCatalog(value); }).catch(e => { if (!controller.signal.aborted) setError(e.message === 'unavailable' ? 'unavailable' : 'error'); });
     return () => controller.abort();
   }, [headers, refresh]);
   const providers = useMemo(() => [...new Set((catalog?.sessions ?? []).map(s => s.provider).filter((p): p is string => !!p))].sort(), [catalog]);
@@ -87,19 +91,21 @@ export default function SessionPerformanceWorkspace({ config, dateRange }: { con
   function chooseSession(id: string): void { routeSelection(id); setSelection(id); requestAnimationFrame(() => detailRef.current?.focus()); }
   useEffect(() => { setPage(0); }, [query, sort, dateRange, providerFilter]);
   useEffect(() => {
-    setDetail(undefined); setSpanId(undefined); setDetailError(false); setKind(params().get('kind') ?? 'all'); setSpanPage(0);
+    setDetailResult(undefined); setSpanId(undefined); setDetailError(false); setKind(params().get('kind') ?? 'all'); setSpanPage(0);
     if (!selectedId || !catalog) return;
     const controller = new AbortController();
     fetch(`api/session-performance/${encodeURIComponent(selectedId)}${refresh ? '?refresh=true' : ''}`, { headers, signal: controller.signal })
       .then(async response => { if (!response.ok) throw new Error('detail'); return await response.json() as PerformanceDetail; })
-      .then(value => { setDetail(value); const longest = [...value.turns].filter(turn => !turn.isSubagent && turn.durationMs !== null).sort((a,b) => (b.durationMs ?? 0) - (a.durationMs ?? 0))[0]; const retained = params().get('turn'); setTurnId(retained === 'all' || value.turns.some(turn => turn.id === retained) ? retained! : longest?.id ?? 'all'); })
+      .then(value => { if (controller.signal.aborted || value.session.id !== selectedId) return; setDetailResult({ value, scope: detailScope }); const longest = [...value.turns].filter(turn => !turn.isSubagent && turn.durationMs !== null).sort((a,b) => (b.durationMs ?? 0) - (a.durationMs ?? 0))[0]; const retained = params().get('turn'); setTurnId(retained === 'all' || value.turns.some(turn => turn.id === retained) ? retained! : longest?.id ?? 'all'); })
       .catch(() => { if (!controller.signal.aborted) setDetailError(true); });
     return () => controller.abort();
-  }, [selectedId, headers, catalog, refresh]);
+  }, [selectedId, headers, catalog, refresh, detailScope]);
   useEffect(() => { setSpanPage(0); }, [kind, turnId]);
   const selectedTurn = detail?.turns.find(turn => turn.id === turnId);
-  const rows = (detail?.spans ?? []).filter(span => (kind === 'all' || span.kind === kind)
-    && (!selectedTurn || span.turnId === selectedTurn.label || (span.startMs !== null && span.endMs !== null && span.startMs <= (selectedTurn.endMs ?? selectedTurn.startMs) && span.endMs >= selectedTurn.startMs)));
+  const rows = useMemo(() => (detail?.spans ?? []).filter(span => (kind === 'all' || span.kind === kind)
+    && (!selectedTurn || span.turnId === selectedTurn.label || (span.startMs !== null && span.endMs !== null && span.startMs <= (selectedTurn.endMs ?? selectedTurn.startMs) && span.endMs >= selectedTurn.startMs))), [detail, kind, selectedTurn]);
+  const chartSamples = useMemo(() => durationSamples(rows), [rows]);
+  const chartLabels = useMemo(() => new Map(rows.map(span => [span.id, span.label || span.kind])), [rows]);
   useEffect(() => { setSourceRecord(undefined); }, [spanId, detail]);
   const closeSource = (): void => { setSourceRecord(undefined); requestAnimationFrame(() => sourceOpener.current?.focus()); };
   const selectedSpan = detail?.spans.find(span => span.id === spanId);
@@ -149,8 +155,16 @@ export default function SessionPerformanceWorkspace({ config, dateRange }: { con
         {detailError ? <p className="performance-state" role="alert">{t('error')}</p> : !detail ? <p className="performance-state" role="status">{selectedId ? t('loading') : t('select')}</p> : summary && <>
           {summary.status === 'no-evidence' && <p className="performance-state" role="status">{t('agentUnsupported')}</p>}
           <StorageReport key={summary.id} detail={detail} onSelect={selectSpan} />
+          <div className="native-chart-scope" role="group" aria-label={t('NativeChart.scope')}>
+            <label>{t('turn')}<select aria-label={t('turn')} value={turnId} onChange={event => { setTurnId(event.target.value); saveFilter('turn', event.target.value); }}><option value="all">{t('allTurns')}</option>{detail.turns.map((turn, index) => <option key={turn.id} value={turn.id}>{index + 1} · {t(turn.isSubagent ? 'child' : 'root')} · {timingDuration(turn.durationMs)}</option>)}</select></label>
+            <label>{t('category')}<select aria-label={t('category')} value={kind} onChange={event => { setKind(event.target.value); saveFilter('kind', event.target.value); }}><option value="all">{t('all')}</option>{[...new Set(detail.spans.map(s => s.kind))].map(value => <option key={value} value={value}>{metricLabel(value)}</option>)}</select></label>
+          </div>
+          {summary.id === selectedId && <NativeChartSurface key={`${detailScope}:${summary.id}`} samples={chartSamples}
+            title={t('NativeChart.title')} xLabel={t('NativeChart.xLabel')} yLabel={t('NativeChart.yLabel')}
+            onSelect={selectSpan} getLabel={id => chartLabels.get(id) ?? id} />}
+          <p className="performance-note">{t('NativeChart.coverage', { shown: chartSamples.length, retained: rows.length })}{detail.omittedSpans > 0 ? ` ${t('omittedSpans', { count: detail.omittedSpans })}` : ''}</p>
           <details className="storage-events"><summary>{t('eventDetails')}</summary>
-          <section className="performance-intervals"><div className="performance-toolbar"><h3>{t('timeline')}</h3><label>{t('turn')}<select aria-label={t('turn')} value={turnId} onChange={event => { setTurnId(event.target.value); saveFilter('turn', event.target.value); }}><option value="all">{t('allTurns')}</option>{detail.turns.map((turn, index) => <option key={turn.id} value={turn.id}>{index + 1} · {t(turn.isSubagent ? 'child' : 'root')} · {timingDuration(turn.durationMs)}</option>)}</select></label><label>{t('category')}<select aria-label={t('category')} value={kind} onChange={event => { setKind(event.target.value); saveFilter('kind', event.target.value); }}><option value="all">{t('all')}</option>{[...new Set(detail.spans.map(s => s.kind))].map(value => <option key={value} value={value}>{metricLabel(value)}</option>)}</select></label></div>
+          <section className="performance-intervals"><div className="performance-toolbar"><h3>{t('timeline')}</h3></div>
             <div className="performance-metrics">{summary.metrics.map(metric => <button aria-pressed={kind === metric.kind} key={metric.kind} onClick={() => { const next = kind === metric.kind ? 'all' : metric.kind; setKind(next); saveFilter('kind', next); }}><span>{metricLabel(metric.kind)} · {metric.count}</span><strong>{timingDuration(metric.durationMs)}</strong></button>)}</div>
             <div className="performance-axis"><span>{date(start)}</span><span>+{timingDuration(scale)}</span></div>
             <div className="performance-span-list">{rows.length === 0 && <p className="performance-note">{t('noSpans')}</p>}{paged(rows, spanPage, 80).map(span => {

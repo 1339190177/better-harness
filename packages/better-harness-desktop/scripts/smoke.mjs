@@ -55,6 +55,10 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => { if (entry.type() === 'error') errors.push(entry.text()); });
+  // 控制台文本会丢掉路由，失败时无法归因；把响应级失败记成带 URL 的一条。
+  page.on('response', (response) => {
+    if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${response.url()}`);
+  });
   await page.waitForLoadState('networkidle');
   await page.locator('body').waitFor();
   assert.ok((await page.locator('body').innerText()).length > 100);

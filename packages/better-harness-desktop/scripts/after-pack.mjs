@@ -4,11 +4,15 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installNsxpc, installEsbuildXpc, esbuildServiceId, installAcpXpc, installEvidenceXpc, installDiffXpc, installArchXpc, installPtyXpc, serviceId, acpServiceId, evidenceServiceId, diffServiceId, archServiceId, ptyServiceId } from './nsxpc-bundle.mjs';
 
-export default async function afterPack(context) {
+import { installChartRuntime } from './chart-runtime.mjs';
+
+export default async function afterPack(context, {
+  root = resolve(dirname(fileURLToPath(import.meta.url)), '..'), run = execFileSync,
+} = {}) {
   if (context.electronPlatformName !== 'darwin') return;
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const native = join(root, 'dist', 'native');
   const app = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+  const chart = await installChartRuntime(app, native);
   await installNsxpc(app, native);
   await installEsbuildXpc(app, native);
   // macOS ACP runs through its own launchd NSXPC service: the `harness-acp-xpc`
@@ -58,7 +62,8 @@ export default async function afterPack(context) {
     join(app, 'Contents', 'MacOS', 'harness-pty-client'),
     join(nativeResources, 'harness-acp-host'),
     join(nativeResources, 'harness-evidence-host'),
+    chart.addon,
   ]) {
-    execFileSync('codesign', ['--force', '--sign', '-', target], { stdio: 'inherit' });
+    run('codesign', ['--force', '--sign', '-', target], { stdio: 'inherit' });
   }
 }

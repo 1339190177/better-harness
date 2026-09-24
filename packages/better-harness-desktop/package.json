@@ -19,6 +19,12 @@
     "pack": "npm run build && npm run stage && electron-builder --dir",
     "dist": "npm run build && npm run stage && electron-builder",
     "build:rust": "node scripts/rust.mjs",
+    "build:chart": "node scripts/chart-runtime.mjs",
+    "smoke:chart": "node scripts/chart-runtime.mjs --smoke",
+    "smoke:chart-bridge": "node scripts/native-chart-smoke.mjs",
+    "smoke:chart-packaged": "node scripts/native-chart-smoke.mjs --packaged",
+    "test:chart": "node scripts/chart-runtime.mjs --test",
+    "test:chart-packaging": "node --test test/chart-runtime-packaging.test.mjs",
     "icons": "node scripts/icons.mjs",
     "test:rust": "node scripts/rust.mjs --test",
     "test:native": "npm exec -w @qoder-ai/harness-studio -- vitest run --config vitest.native.config.ts",
@@ -81,7 +87,9 @@
             "harness-diff-host*",
             "harness-diff-service.NOTICES.txt",
             "harness-arch-host*",
-            "harness-pty-host*"
+            "harness-pty-host*",
+            "harness-chart-runtime.node",
+            "harness-chart-runtime.NOTICES.txt"
           ]
         }
       ]
@@ -104,7 +112,9 @@
             "harness-diff-host*",
             "harness-diff-service.NOTICES.txt",
             "harness-arch-host*",
-            "harness-pty-host*"
+            "harness-pty-host*",
+            "harness-chart-runtime.node",
+            "harness-chart-runtime.NOTICES.txt"
           ]
         }
       ]

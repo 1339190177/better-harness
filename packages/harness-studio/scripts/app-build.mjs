@@ -77,7 +77,7 @@ async function copyStudioAppStaticAssets({ development = false, revision } = {})
       development ? injectStudioDevReload(sourceHtml) : sourceHtml,
       "utf8",
     ),
-    ...["tokens.css", "performance.css", "memory.css", "memory-review.css", "shell.css", "workbench.css", "customizations.css", "components.css", "terminal.css", "live-composer.css", "acp-session.css", "ai-elements.css"].map((file) =>
+    ...["tokens.css", "performance.css", "native-chart.css", "memory.css", "memory-review.css", "shell.css", "workbench.css", "customizations.css", "components.css", "terminal.css", "live-composer.css", "acp-session.css", "ai-elements.css"].map((file) =>
       copyFile(join(appStylesDir, file), join(appDir, "assets", file)),
     ),
     // The terminal emulator ships its own stylesheet; copy it beside ours and

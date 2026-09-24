@@ -1,15 +1,17 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, Menu, nativeTheme, session, utilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, sharedTexture, utilityProcess } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { connectStudioService, desktopEsbuildOptions } from './service-host.mjs';
 import { startAppsHost } from './apps-host.mjs';
+import { createNativeChartController } from './native-chart-host.mjs';
 import { HEADER, isSameOrigin, isExternalUrl } from './protocol.mjs';
 
 let window;
 let service;
 let appsHost;
+let nativeCharts;
 let origin;
 let quitting = false;
 let failureReported = false;
@@ -94,6 +96,7 @@ async function createWindow() {
     webPreferences: {
       partition: 'better-harness-desktop', nodeIntegration: false, contextIsolation: true,
       sandbox: true, webviewTag: false,
+      preload: fileURLToPath(new URL('./native-chart-preload.cjs', import.meta.url)),
     },
   });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
@@ -120,9 +123,9 @@ async function createWindow() {
   });
   window.once('ready-to-show', () => window?.show());
   window.on('closed', () => { window = undefined; });
-  // The renderer runs sandboxed with no preload, so the shell state travels in
-  // the URL. It carries no credentials: the access token stays in a request
-  // header added by the session, never in a URL.
+  // preload 只提供版本化图表桥接；shell 外观仍由无凭据的 URL 参数传入。
+  // 认证 token 只由 session 注入请求头，不进入 preload 或页面。
+  nativeCharts.attach(window, origin);
   await window.loadURL(studioUrl(origin));
 }
 
@@ -151,12 +154,22 @@ else {
   }
   app.on('activate', () => { if (!window && origin && !quitting) void createWindow().catch(fail); });
   app.on('before-quit', (event) => {
-    if (quitting || (!service && !appsHost)) return;
+    if (quitting || (!service && !appsHost && !nativeCharts)) return;
     event.preventDefault();
     quitting = true;
-    void Promise.allSettled([service?.stop(), appsHost?.stop()]).finally(() => app.quit());
+    // 先销毁消费端以释放 Canvas 引用，再等待有界排空，不能提前 terminate GPU worker。
+    window?.destroy();
+    void Promise.allSettled([nativeCharts?.stop(), service?.stop(), appsHost?.stop()]).finally(() => app.quit());
   });
   void app.whenReady().then(async () => {
+    const addonPath = app.isPackaged
+      ? process.platform === 'darwin'
+        ? join(process.resourcesPath, '..', 'Frameworks', 'harness-chart-runtime.node')
+        : join(process.resourcesPath, 'native', 'harness-chart-runtime.node')
+      : fileURLToPath(new URL('../dist/native/harness-chart-runtime.node', import.meta.url));
+    nativeCharts = createNativeChartController({ ipcMain, sharedTexture, addonPath });
+    // 仅 main 的诊断接口供桌面端验收使用，不暴露到 renderer。
+    globalThis.harnessNativeChartDiagnostics = () => nativeCharts.diagnostics();
     const icon = developmentIcon();
     if (icon && process.platform === 'darwin') app.dock?.setIcon(icon);
     const desktopSession = session.fromPartition('better-harness-desktop');
