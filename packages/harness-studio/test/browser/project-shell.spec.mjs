@@ -148,12 +148,16 @@ test("switches one shared View workbench between remembered Projects", async ({ 
   await page.keyboard.press("ArrowDown");
   await expect(navigation.getByRole("button", { name: /^Commits/ })).toBeFocused();
   await page.keyboard.press("End");
-  await expect(navigation.getByRole("button", { name: "Terminal", exact: true })).toBeFocused();
+  await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(navigation.getByRole("button", { name: "Sessions", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(navigation.getByRole("button", { name: "Sessions", exact: true })).toBeFocused();
   expect(await page.locator(".studio-primary-nav nav button").evaluateAll((buttons) => buttons.filter((button) => button.tabIndex === 0).length)).toBe(1);
 
-  await expect(navigation.getByRole("button")).toHaveCount(20);
+  await expect(navigation.getByRole("button")).toHaveCount(19);
   await expect(page.locator(".studio-context-title")).toHaveText("Sessions");
 
   for (const layout of layouts) {
@@ -167,7 +171,12 @@ test("switches one shared View workbench between remembered Projects", async ({ 
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
     const visibleViewNavigations = await page.evaluate(() => [...document.querySelectorAll(".studio-project-views")].filter((node) => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== "hidden").length);
     expect(visibleViewNavigations).toBe(1);
+    await expect(navigation.getByRole("button", { name: "Terminal", exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath(`project-shell-${layout.name}.png`) });
+    await navigation.getByRole("button", { name: "Sessions", exact: true }).press("End");
+    await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeFocused();
+    await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath(`project-navigation-${layout.name}.png`) });
     if (layout.name === "narrow") {
       await selectProject(page, labelB);
       await expect(page.locator(".studio-primary-nav")).not.toBeInViewport();
@@ -181,6 +190,29 @@ test("switches one shared View workbench between remembered Projects", async ({ 
     await page.screenshot({ path: testInfo.outputPath(`project-title-${layout.name}.png`) });
   }
   expect(errors).toEqual([]);
+});
+
+test("PTY 可用时仍不显示 Terminal 导航入口", async ({ page }) => {
+  await page.route("**/api/config", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), ptyEnabled: true } });
+  });
+  await page.setViewportSize(layouts[0]);
+  await page.goto(`${studio.url}/#/sessions`);
+  const navigation = viewNavigation(page);
+  await expect(navigation.getByRole("button", { name: "Components", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Terminal", exact: true })).toHaveCount(0);
+});
+
+test("移除导航入口后保留 Terminal 直达路由和状态", async ({ page }) => {
+  await page.setViewportSize(layouts[0]);
+  await page.goto(`${studio.url}/#/projects/${descriptorA.id}/terminal`);
+  await expect(page.locator(".studio-context-title")).toHaveText("Terminal");
+  await expect(page.locator(".studio-status-bar")).toContainText("Terminal host not staged");
+  const navigation = viewNavigation(page);
+  await expect(navigation.getByRole("button", { name: "Terminal", exact: true })).toHaveCount(0);
+  await navigation.getByRole("button", { name: "Sessions", exact: true }).click();
+  await expect(page.locator(".studio-context-title")).toHaveText("Sessions");
 });
 
 test("recovers a failed workbench bootstrap without reloading the page", async ({ page }) => {

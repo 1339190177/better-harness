@@ -116,7 +116,8 @@ export function ProjectSidebar(props: {
   const nested = new Set<StudioArea>(["session-performance", "commits"]);
   // The model already orders rows by section; the nested Session sub-routes ride
   // inside the Sessions group rather than appearing as top-level rows.
-  const rowDestinations = props.destinations.filter(destination => !nested.has(destination.id));
+  // Terminal 保留直达路由和页面元数据，但不再作为侧栏入口展示。
+  const rowDestinations = props.destinations.filter(destination => !nested.has(destination.id) && destination.id !== "terminal");
   // Consecutive rows that share a `group` label form one titled section, so the
   // Daily and Professional headers come from the model order, not a second list.
   const navSections = rowDestinations.reduce<{ label: string; rows: StudioDestination[] }[]>((sections, destination) => {
