@@ -114,3 +114,43 @@ test("binding validation preserves zero-signal lead admission and reconciles Ses
     lead: { population: population.binding, selection: leadSelection, admission: leadAdmission },
   }), []);
 });
+
+test("frozen population keeps one entry per distinct session identity", async () => {
+  const { freezeSessionPopulation } = await populationModule();
+  const population = freezeSessionPopulation({
+    scope: {
+      platform: "copilot",
+      workspace: "/private/workspace",
+      since: "2026-09-17T00:00:00.000Z",
+      until: "2026-09-24T00:00:00.000Z",
+    },
+    sessions: [
+      { sessionId: "shared-private", sourceRefs: [{ kind: "session-state", path: "/private/a/events.jsonl" }] },
+      { sessionId: "shared-private", sourceRefs: [{ kind: "session-state", path: "/private/b/events.jsonl" }] },
+      { sessionId: "  ", sourceRefs: [{ kind: "session-state", path: "/private/c/events.jsonl" }] },
+      { sessionId: "unique-private", sourceRefs: [{ kind: "session-state", path: "/private/d/events.jsonl" }] },
+    ],
+    suppliedUntil: true,
+  });
+
+  assert.deepEqual(population.sessions.map((session) => session.sessionId), ["shared-private", "unique-private"]);
+  assert.equal(population.binding.eligible.count, 2);
+  assert.equal(population.binding.omission.duplicateIdentitySessions, 2);
+  assert.doesNotMatch(JSON.stringify(population.binding), /\/private\//u);
+});
+
+test("frozen population keeps the surviving duplicate entry own workspace CWD candidates", async () => {
+  const { freezeSessionPopulation } = await populationModule();
+  const { bindSessionWorkspaceCwds, sessionWorkspaceCwds } = await workspaceModule();
+  const population = freezeSessionPopulation({
+    scope: { platform: "copilot", workspace: "/workspace", until: "2026-09-24T00:00:00.000Z" },
+    sessions: [
+      { sessionId: "shared" },
+      bindSessionWorkspaceCwds({ sessionId: "shared" }, ["/elsewhere"]),
+    ],
+    suppliedUntil: true,
+  });
+
+  assert.equal(population.sessions.length, 1);
+  assert.deepEqual(sessionWorkspaceCwds(population.sessions[0]), []);
+});

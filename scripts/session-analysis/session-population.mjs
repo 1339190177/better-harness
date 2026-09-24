@@ -72,12 +72,33 @@ export function freezeSessionPopulation({
     _factsStartedAt: startedAt,
   }, platform, providerSessionId);
   const sourceSessions = rows(sessions);
-  const workspaceCwdsBySessionId = new Map(sourceSessions.flatMap((session) => {
+  // First occurrence wins so the frozen (first-wins) entry inherits its own
+  // workspace CWD candidates instead of a later duplicate's.
+  const workspaceCwdsBySessionId = new Map();
+  for (const session of sourceSessions) {
     const sessionId = String(session?.sessionId ?? "").trim();
-    return sessionId ? [[sessionId, sessionWorkspaceCwds(session)]] : [];
-  }));
+    if (sessionId && !workspaceCwdsBySessionId.has(sessionId)) {
+      workspaceCwdsBySessionId.set(sessionId, sessionWorkspaceCwds(session));
+    }
+  }
   const prepared = prepareFactsSessionInventory(sourceSessions, factsContext);
-  const frozenSessions = Object.freeze(prepared.sessions.map((session) => {
+  // The binding counts eligible Sessions by distinct trimmed id, so the frozen
+  // inventory must hold the same set: a duplicate or empty-id entry would make
+  // every raw-count consumer (facts scope, selectSessions) disagree with the
+  // binding and fail the whole bundle with SESSION_POPULATION_BINDING_MISMATCH.
+  const dedupedSessions = [];
+  const seenIds = new Set();
+  let duplicateIdentitySessions = 0;
+  for (const session of prepared.sessions) {
+    const sessionId = String(session?.sessionId ?? "").trim();
+    if (!sessionId || seenIds.has(sessionId)) {
+      duplicateIdentitySessions += 1;
+      continue;
+    }
+    seenIds.add(sessionId);
+    dedupedSessions.push(session);
+  }
+  const frozenSessions = Object.freeze(dedupedSessions.map((session) => {
     const sessionId = String(session?.sessionId ?? "").trim();
     return freezeSession(session, sessionId ? workspaceCwdsBySessionId.get(sessionId) : []);
   }));
@@ -103,6 +124,7 @@ export function freezeSessionPopulation({
         exactIdentityAvailable: Boolean(factsContext.excludedSessionId),
         activeSessions: count(prepared.omitted.activeSessions),
         homeSessionOnly: count(prepared.omitted.homeSessionOnly),
+        duplicateIdentitySessions: count(duplicateIdentitySessions),
         recencyInference: suppliedUntil ? "disabled-frozen-until" : "enabled-unfrozen-until",
       }),
       eligible: Object.freeze({

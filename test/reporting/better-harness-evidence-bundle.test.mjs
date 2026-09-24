@@ -1128,6 +1128,49 @@ test("Claude population freeze and Session facts agree under one frozen topology
   }
 });
 
+test("Copilot population freeze keeps one identity per duplicated session-state directory", async () => {
+  const fixture = await realpath(await mkdtemp(path.join(os.tmpdir(), "evidence-bundle-copilot-duplicate-")));
+  try {
+    const workspace = path.join(fixture, "workspace");
+    const home = path.join(fixture, ".copilot");
+    const sharedId = "831cdd03-a101-4246-8809-5d7a80dd48be";
+    await mkdir(workspace, { recursive: true });
+    for (const dirName of ["session-a", "session-b"]) {
+      const sessionDir = path.join(home, "session-state", dirName);
+      await mkdir(sessionDir, { recursive: true });
+      await writeFile(path.join(sessionDir, "workspace.yaml"), `id: ${sharedId}\ncwd: ${workspace}\n`);
+      await writeFile(path.join(sessionDir, "events.jsonl"), [
+        { type: "session.start", id: "e1", timestamp: "2026-07-20T01:00:00.000Z", data: { sessionId: sharedId, selectedModel: "test-model", context: { cwd: workspace } } },
+        { type: "user.message", id: "e2", timestamp: "2026-07-20T01:00:01.000Z", data: { content: "run the tests" } },
+        { type: "assistant.message", id: "e3", timestamp: "2026-07-20T01:00:04.000Z", data: { model: "test-model", content: "done", messageId: "m1" } },
+      ].map((row) => JSON.stringify(row)).join("\n") + "\n");
+    }
+    const resolution = topologyResolution(workspace);
+    const context = freezeEvidenceBundleContext({
+      workspace,
+      platform: "copilot",
+      depth: "normal",
+      since: "2026-07-01T00:00:00.000Z",
+      until: "2026-07-24T08:00:00.000Z",
+      topology: resolution.topology,
+      analysisScope: resolution.analysisScope,
+    }, NOW);
+    const options = { "copilot-home": home };
+
+    const population = await collectSessionPopulation(context, options);
+    assert.equal(population.sessions.length, 1);
+    assert.equal(population.binding.eligible.count, 1);
+    assert.equal(population.binding.omission.duplicateIdentitySessions, 1);
+
+    const lane = await collectSessionEvidence(context, options, { sessionPopulation: population });
+    assert.equal(lane.status, "available");
+    assert.equal(lane.data.scope.eligibleSessions, population.binding.eligible.count);
+    assert.equal(lane.data.scope.selectedSessions, population.binding.eligible.count);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
 test("zero-signal Episode admission remains valid inside one bound population", async () => {
   const result = await collectEvidenceBundle({ workspace: ".", platform: "codex" }, dependencies());
 
