@@ -2483,6 +2483,23 @@
    rather than scroll a picture it never shows whole. */
 .arch-svg { display: block; }
 .arch-svg [role="button"] { cursor: pointer; }
+/* The canvas draws the same diagram with Skia. Its labels cannot be Skia's:
+   canvaskit-wasm has no system font manager, so they are DOM text laid out in
+   the same diagram space, which also keeps them crisp at every zoom. */
+.arch-kit-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.arch-kit-labels { position: absolute; inset: 0; pointer-events: none; }
+.arch-kit-label { position: absolute; font-family: var(--font-ui); line-height: 1; white-space: nowrap; }
+.arch-kit-label[data-align="center"] { transform: translate(-50%, -50%); }
+.arch-kit-label[data-align="start"] { transform: translate(0, -50%); }
+.arch-kit-boundary-title { color: var(--color-text-muted); font-size: 11px; font-weight: 600; }
+.arch-kit-leaf-name { color: var(--color-text); font-size: var(--type-meta-size); }
+.arch-kit-leaf-kind { color: var(--color-text-muted); font-size: 10px; }
+/* A label sits on a line that often crosses a box, so it carries the pane's own
+   colour as a halo rather than relying on the box behind it. */
+.arch-kit-edge-label { color: var(--color-text-muted); font-size: 10px; text-shadow: 0 0 3px var(--color-panel), 0 0 3px var(--color-panel); }
+.arch-kit-legend-title { color: var(--color-text); font-size: 11px; font-weight: 600; }
+.arch-kit-legend-label { color: var(--color-text-muted); font-size: 10px; }
+.arch-kit-legend-note { color: var(--color-text-subtle); font-size: 10px; }
 .arch-loading { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-lg); color: var(--color-text-muted); }
 .arch-error { padding: var(--space-lg); color: var(--color-danger); }
 .arch-zoom { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }

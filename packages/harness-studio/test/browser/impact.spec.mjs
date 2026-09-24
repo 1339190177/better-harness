@@ -122,9 +122,14 @@ test("projects the chosen commit without borrowing the history workbench", async
   await page.getByLabel("Filter subject, hash, or author").fill("");
 
   // The wait is on the render, not on a duration: the element card only exists
-  // after the projection has been drawn.
-  await expect(page.locator(".arch-elements .arch-box").first()).toBeVisible();
-  await page.locator(".arch-elements .arch-box").first().click({ force: true });
+  // after the projection has been drawn. The diagram is Skia's once the runtime
+  // arrives, and a canvas has no nodes to click — so the pointer is placed over
+  // the element's own label, which is DOM text laid out where the node was drawn.
+  await expect(page.locator(".arch-kit-canvas")).toBeVisible();
+  const storeLabel = page.locator(".arch-kit-label.arch-kit-leaf-name", { hasText: "Store" });
+  await expect(storeLabel).toBeVisible();
+  const storeBox = await storeLabel.boundingBox();
+  await page.mouse.click(storeBox.x + storeBox.width / 2, storeBox.y + storeBox.height / 2);
   await expect(page.locator(".arch-popup")).toBeVisible();
   await expect(page.locator(".arch-popup")).toContainText("Store");
   await page.keyboard.press("Escape");
@@ -143,6 +148,31 @@ test("projects the chosen commit without borrowing the history workbench", async
   await expect(page.locator(".git-history-workbench")).toBeVisible();
   await expect(page.locator(".arch-toggle")).toHaveCount(0);
   await expect(page.locator(".git-detail-pane .arch-pane")).toHaveCount(0);
+});
+
+/**
+ * The canvas is a faster renderer, not a required one: a browser that cannot
+ * load the Skia runtime still reads the same diagram, drawn as SVG.
+ */
+test("draws the diagram as SVG when the Skia runtime cannot load", async ({ page }) => {
+  await page.route("**/canvaskit.wasm", (route) => route.abort());
+  await page.goto(`${studio.url}/#/impact`);
+  await expect(page.locator(".arch-canvas")).toBeVisible();
+  await expect(page.locator(".arch-kit-canvas")).toHaveCount(0);
+
+  await expect(page.locator(".arch-elements .arch-box").first()).toBeVisible();
+  await expect(page.locator(".arch-elements .arch-box")).toHaveCount(2);
+  await page.locator(".arch-elements .arch-box").first().click({ force: true });
+  await expect(page.locator(".arch-popup")).toBeVisible();
+  await expect(page.locator(".arch-popup")).toContainText("Store");
+
+  // The viewport still works: zoom reads out and Fit restores the whole picture.
+  const level = page.locator(".arch-zoom-level");
+  const fitted = await level.innerText();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(level).not.toHaveText(fitted);
+  await page.getByRole("button", { name: "Fit" }).click();
+  await expect(level).toHaveText(fitted);
 });
 
 test("stacks the chooser over the projection when narrow", async ({ page }) => {

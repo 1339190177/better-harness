@@ -21,6 +21,9 @@ export const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  // The Impact diagram's Skia runtime is instantiated from this asset, and a
+  // streaming instantiation needs the wasm media type.
+  ".wasm": "application/wasm",
 };
 
 /** Shared bound across artifact and workspace import sessions. */

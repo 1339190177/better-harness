@@ -86,6 +86,11 @@ async function copyStudioAppStaticAssets({ development = false, revision } = {})
     copyFile(join(appSourceDir, "components", "ai-elements", "LICENSE"), join(appDir, "assets", "ai-elements.LICENSE")),
     copyFile(join(inspectorAssetRoot, "workbench.css"), join(appDir, "assets", "inspector-workbench.css")),
     copyFile(join(repositoryRoot, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"), join(appDir, "assets", "pdf.worker.mjs")),
+    // The Impact diagram's Skia runtime: the glue publishes its initializer as a
+    // global and finds its wasm beside itself, so both are served as assets and
+    // fetched the first time the pane opens.
+    copyFile(join(repositoryRoot, "node_modules", "canvaskit-wasm", "bin", "canvaskit.js"), join(appDir, "assets", "canvaskit.js")),
+    copyFile(join(repositoryRoot, "node_modules", "canvaskit-wasm", "bin", "canvaskit.wasm"), join(appDir, "assets", "canvaskit.wasm")),
   ]);
   if (development) {
     await writeFile(join(appDir, "assets", reloadAssetName), String(revision), "utf8");
